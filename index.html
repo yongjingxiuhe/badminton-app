@@ -1,0 +1,2953 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>バドミントン対戦表＆戦績・レート管理（v9）</title>
+<style>
+  :root {
+    --bg: #0b132b;
+    --surface: #1c2541;
+    --surface-2: #263358;
+    --border: #3a506b;
+    --text: #f1f5f9;
+    --text-muted: #94a3b8;
+    --accent: #38bdf8;
+    --accent-dark: #0284c7;
+    --gold: #facc15;
+    --green: #22c55e;
+    --green-bg: rgba(34, 197, 94, 0.16);
+    --amber: #f59e0b;
+    --amber-bg: rgba(245, 158, 11, 0.16);
+    --red: #ef4444;
+    --red-bg: rgba(239, 68, 68, 0.15);
+    --purple: #a78bfa;
+    --purple-bg: rgba(167, 139, 250, 0.16);
+    --teal: #14b8a6;
+    --teal-bg: rgba(20, 184, 166, 0.18);
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body {
+    margin: 0; padding: 0 0 88px 0; background: var(--bg); color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Hiragino Kaku Gothic ProN", "Hiragino Sans", "Noto Sans JP", Meiryo, sans-serif;
+    line-height: 1.45;
+  }
+  header {
+    position: sticky; top: 0; z-index: 100;
+    background: rgba(11, 19, 43, 0.96); backdrop-filter: blur(8px);
+    border-bottom: 1px solid var(--border); padding: 10px 10px 8px;
+  }
+  .header-top { display: flex; justify-content: space-between; align-items: center; gap: 6px; }
+  h1 {
+    margin: 0; font-size: 14px; font-weight: 800; color: var(--gold);
+    letter-spacing: 0.02em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1;
+  }
+  .header-right { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+  .progress-badge {
+    font-size: 11px; font-weight: 700; background: var(--surface-2); color: var(--accent);
+    padding: 3px 8px; border-radius: 999px; border: 1px solid var(--border); white-space: nowrap;
+  }
+  .privacy-btn {
+    font-size: 10px; font-weight: 800; padding: 4px 8px; border-radius: 999px;
+    border: 1px solid var(--border); background: var(--surface-2); color: var(--text-muted);
+    cursor: pointer; white-space: nowrap; transition: all 0.15s;
+  }
+  .privacy-btn.hidden-on { background: rgba(245, 158, 11, 0.22); color: #fde68a; border-color: var(--amber); }
+  .tabs { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; margin-top: 8px; }
+  .tab-btn {
+    background: var(--surface); color: var(--text-muted); border: 1px solid var(--border);
+    border-radius: 8px; padding: 8px 2px; font-size: 11px; font-weight: 700; cursor: pointer;
+  }
+  .tab-btn.active { background: var(--accent-dark); color: #fff; border-color: var(--accent); }
+  .container { max-width: 780px; margin: 0 auto; padding: 12px; }
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+
+  .card-box {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 14px; padding: 14px; margin-bottom: 14px;
+  }
+  .card-box h2 {
+    margin: 0 0 10px 0; font-size: 15px; color: var(--gold);
+    display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap;
+  }
+  .card-box h3 { margin: 14px 0 8px 0; font-size: 13px; color: var(--accent); }
+  .note { font-size: 12px; color: var(--text-muted); margin: 0 0 10px 0; }
+
+  /* Accordion */
+  details.acc-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 14px; margin-bottom: 14px; overflow: hidden;
+  }
+  details.acc-card > summary {
+    list-style: none; padding: 13px 14px; cursor: pointer;
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    font-size: 15px; font-weight: 800; color: var(--gold); user-select: none;
+  }
+  details.acc-card > summary::-webkit-details-marker { display: none; }
+  details.acc-card > summary::after { content: "▼"; font-size: 11px; color: var(--text-muted); transition: transform 0.2s; }
+  details.acc-card[open] > summary::after { transform: rotate(180deg); }
+  details.acc-card[open] > summary { border-bottom: 1px solid rgba(58, 80, 107, 0.55); }
+  .acc-body { padding: 14px; }
+
+  /* Segmented control */
+  .seg-bar {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 6px;
+    background: var(--bg); padding: 4px; border-radius: 10px; border: 1px solid var(--border); margin-bottom: 12px;
+  }
+  .seg-bar.cols-4 { grid-template-columns: repeat(4, 1fr); }
+  .seg-btn {
+    background: transparent; color: var(--text-muted); border: none; border-radius: 7px;
+    padding: 9px 4px; font-size: 12px; font-weight: 800; cursor: pointer;
+  }
+  .seg-btn.active { background: var(--accent-dark); color: #fff; }
+  .seg-btn.active.rating-mode { background: linear-gradient(135deg, #7c3aed, #4f46e5); color: #fff; }
+  .seg-btn.active.team-mode { background: linear-gradient(135deg, #dc2626, #b91c1c); color: #fff; }
+  .seg-btn.active.number-mode { background: linear-gradient(135deg, #0d9488, #0f766e); color: #fff; }
+
+  .score-toolbar {
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+    padding: 9px 12px; margin-bottom: 10px; flex-wrap: wrap;
+  }
+  .score-toolbar .lbl { font-size: 12px; font-weight: 700; color: var(--text-muted); }
+  .mini-seg { display: inline-flex; background: var(--bg); padding: 3px; border-radius: 8px; border: 1px solid var(--border); gap: 3px; }
+  .mini-seg-btn { background: transparent; color: var(--text-muted); border: none; border-radius: 6px; padding: 5px 10px; font-size: 12px; font-weight: 800; cursor: pointer; }
+  .mini-seg-btn.active { background: var(--accent-dark); color: #fff; }
+
+  .number-mode-banner { background: var(--teal-bg); border: 1px solid rgba(20, 184, 166, 0.55); border-radius: 12px; padding: 12px; margin-bottom: 12px; display: none; }
+  .number-mode-banner .b-title { font-size: 13px; font-weight: 800; color: #5eead4; margin-bottom: 4px; }
+  .number-mode-banner .b-desc { font-size: 12px; color: #e2e8f0; margin-bottom: 8px; }
+  .number-box-setup { background: rgba(20, 184, 166, 0.12); border: 1px solid rgba(20, 184, 166, 0.5); border-radius: 10px; padding: 11px 12px; margin-bottom: 12px; display: none; }
+
+  .filter-pills { display: flex; gap: 6px; margin-bottom: 10px; flex-wrap: wrap; }
+  .pill-btn { background: var(--surface-2); color: var(--text-muted); border: 1px solid var(--border); border-radius: 999px; padding: 5px 11px; font-size: 11px; font-weight: 700; cursor: pointer; }
+  .pill-btn.active { background: rgba(56, 189, 248, 0.22); color: var(--accent); border-color: var(--accent); }
+
+  /* Form controls */
+  label.field-label { display: block; font-size: 12px; font-weight: 700; color: var(--accent); margin-bottom: 5px; }
+  .form-group { margin-bottom: 12px; }
+  .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .form-row-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+  .inline-add-row { display: grid; grid-template-columns: 1.2fr 1fr 68px 64px; gap: 6px; align-items: center; margin-bottom: 10px; }
+  input[type="text"], input[type="number"], input[type="date"], select, textarea {
+    width: 100%; background: var(--bg); color: var(--text); border: 1px solid var(--border);
+    border-radius: 9px; padding: 9px 10px; font-size: 14px; font-family: inherit;
+  }
+  .rating-input { width: 58px !important; padding: 5px !important; text-align: center; font-weight: 800; font-size: 12px !important; }
+  .team-input-sm { width: 88px !important; padding: 5px 6px !important; font-size: 12px !important; }
+
+  /* Member Master & Attendance Grid */
+  .attend-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(114px, 1fr)); gap: 7px; margin-bottom: 10px; }
+  .attend-chip {
+    background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px;
+    padding: 8px 9px; cursor: pointer; display: flex; flex-direction: column; gap: 2px; user-select: none;
+  }
+  .attend-chip.selected { background: rgba(2, 132, 199, 0.28); border-color: var(--accent); box-shadow: 0 0 0 1px rgba(56, 189, 248, 0.35); }
+  .attend-chip .chip-top { display: flex; justify-content: space-between; align-items: center; gap: 4px; }
+  .attend-chip .chip-name { font-size: 13px; font-weight: 800; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .attend-chip .chip-check { font-size: 11px; font-weight: 800; color: var(--text-muted); }
+  .attend-chip.selected .chip-check { color: var(--accent); }
+  .attend-chip .chip-meta { display: flex; justify-content: space-between; align-items: center; gap: 4px; }
+  .attend-chip .chip-rate { font-size: 11px; font-weight: 700; color: #c4b5fd; }
+  .attend-chip .chip-team { font-size: 10px; font-weight: 700; color: #94a3b8; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 66px; }
+
+  .master-list-wrap { max-height: 300px; overflow-y: auto; border: 1px solid rgba(58, 80, 107, 0.6); border-radius: 10px; background: rgba(11, 19, 43, 0.45); }
+  .toggle-row {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px;
+    padding: 9px 12px; margin-bottom: 10px; cursor: pointer; font-size: 13px; font-weight: 700;
+  }
+  .toggle-row input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--accent); cursor: pointer; }
+
+  .fixed-pair-row { display: grid; grid-template-columns: 1fr 1fr 92px 34px; gap: 6px; align-items: center; margin-bottom: 8px; background: var(--surface-2); padding: 7px; border-radius: 9px; border: 1px solid var(--border); }
+  .prot-row { display: grid; grid-template-columns: 44px 1fr 1fr 34px; gap: 6px; align-items: center; margin-bottom: 8px; background: var(--surface-2); padding: 7px; border-radius: 9px; border: 1px solid var(--border); }
+  .reserved-row { background: var(--surface-2); padding: 9px; border-radius: 10px; border: 1px solid var(--border); margin-bottom: 9px; }
+  .reserved-top { display: grid; grid-template-columns: 74px 1fr 34px; gap: 6px; align-items: center; margin-bottom: 7px; }
+  .reserved-players { display: grid; grid-template-columns: 1fr 1fr auto 1fr 1fr; gap: 4px; align-items: center; }
+  .fixed-pair-row select, .prot-row select, .reserved-row select, .reserved-row input { padding: 6px 5px; font-size: 12px; }
+  .btn-del-pair { background: var(--red-bg); color: #fca5a5; border: 1px solid rgba(239, 68, 68, 0.45); border-radius: 7px; height: 28px; padding: 0 7px; font-weight: 800; cursor: pointer; font-size: 11px; }
+  .btn-rename-sm { background: rgba(56, 189, 248, 0.14); color: var(--accent); border: 1px solid rgba(56, 189, 248, 0.45); border-radius: 7px; height: 28px; padding: 0 7px; font-weight: 700; cursor: pointer; font-size: 11px; }
+
+  /* Team Assignment UI */
+  .team-assign-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
+  .team-col { background: rgba(11, 19, 43, 0.55); border: 1px solid var(--border); border-radius: 10px; padding: 9px; }
+  .team-col.red-col { border-color: rgba(239, 68, 68, 0.55); }
+  .team-col.white-col { border-color: rgba(226, 232, 240, 0.55); }
+  .team-col-header { display: flex; justify-content: space-between; align-items: center; font-size: 12px; font-weight: 800; margin-bottom: 8px; padding-bottom: 5px; border-bottom: 1px solid rgba(148, 163, 184, 0.25); }
+  .team-col.red-col .team-col-header { color: #fca5a5; }
+  .team-col.white-col .team-col-header { color: #f8fafc; }
+  .team-chip-list { display: flex; flex-direction: column; gap: 6px; }
+  .team-chip { display: flex; justify-content: space-between; align-items: center; padding: 7px 9px; border-radius: 8px; font-size: 13px; font-weight: 700; cursor: pointer; user-select: none; }
+  .team-chip.red { background: rgba(239, 68, 68, 0.18); border: 1px solid rgba(239, 68, 68, 0.45); color: #fee2e2; }
+  .team-chip.white { background: rgba(241, 245, 249, 0.14); border: 1px solid rgba(226, 232, 240, 0.45); color: #f8fafc; }
+  .team-chip .tc-rate { font-size: 11px; color: #cbd5e1; }
+
+  .team-tag { display: inline-block; font-size: 10px; font-weight: 800; padding: 1px 6px; border-radius: 4px; margin-right: 5px; vertical-align: middle; }
+  .team-tag.red { background: #dc2626; color: #fff; }
+  .team-tag.white { background: #e2e8f0; color: #0f172a; }
+
+  .team-scoreboard { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 8px; background: rgba(11, 19, 43, 0.65); border: 1px solid var(--border); border-radius: 12px; padding: 12px 10px; text-align: center; }
+  .tsb-side { padding: 8px 6px; border-radius: 10px; }
+  .tsb-side.red { background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.45); }
+  .tsb-side.white { background: rgba(241, 245, 249, 0.12); border: 1px solid rgba(226, 232, 240, 0.45); }
+  .tsb-name { font-size: 13px; font-weight: 800; margin-bottom: 4px; }
+  .tsb-side.red .tsb-name { color: #fca5a5; }
+  .tsb-side.white .tsb-name { color: #f8fafc; }
+  .tsb-wins { font-size: 24px; font-weight: 900; color: #fff; line-height: 1.1; }
+  .tsb-sub { font-size: 11px; color: var(--text-muted); margin-top: 4px; }
+  .tsb-vs { font-size: 13px; font-weight: 900; color: var(--gold); }
+  .tsb-result-banner { margin-top: 10px; text-align: center; font-size: 13px; font-weight: 800; padding: 7px; border-radius: 8px; background: var(--surface-2); color: var(--gold); }
+
+  /* Action Buttons */
+  .action-btn { width: 100%; padding: 13px 14px; border-radius: 11px; border: none; font-size: 14px; font-weight: 800; cursor: pointer; margin-bottom: 8px; display: block; text-align: center; }
+  .action-btn:active { transform: scale(0.98); }
+  .btn-primary { background: linear-gradient(135deg, #0284c7, #2563eb); color: #fff; }
+  .btn-purple { background: linear-gradient(135deg, #7c3aed, #4f46e5); color: #fff; }
+  .btn-red { background: linear-gradient(135deg, #dc2626, #991b1b); color: #fff; }
+  .btn-teal { background: linear-gradient(135deg, #0d9488, #0f766e); color: #fff; }
+  .btn-green { background: linear-gradient(135deg, #16a34a, #15803d); color: #fff; }
+  .btn-emerald { background: linear-gradient(135deg, #059669, #0d9488); color: #fff; }
+  .btn-gold { background: linear-gradient(135deg, #ca8a04, #eab308); color: #0b132b; }
+  .btn-amber { background: linear-gradient(135deg, #d97706, #b45309); color: #fff; }
+  .btn-secondary { background: var(--surface-2); color: var(--text); border: 1px solid var(--border); }
+  .btn-small { padding: 6px 10px; font-size: 11px; border-radius: 8px; width: auto; display: inline-block; margin-bottom: 0; }
+  .btn-danger { background: var(--red-bg); color: #fca5a5; border: 1px solid rgba(239, 68, 68, 0.45); }
+  .btn-row { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+
+  /* Quick Jump Bar & Rounds */
+  .jump-bar { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; margin-bottom: 14px; background: var(--surface); padding: 10px; border-radius: 12px; border: 1px solid var(--border); }
+  .jump-btn { background: var(--surface-2); color: var(--text); border: 1px solid var(--border); border-radius: 8px; padding: 7px 0; font-size: 12px; font-weight: 700; cursor: pointer; text-align: center; }
+  .jump-btn.done { background: var(--green-bg); border-color: var(--green); color: #86efac; }
+  .jump-btn.partial { background: var(--amber-bg); border-color: var(--amber); color: #fde68a; }
+
+  .round-section { margin-bottom: 16px; scroll-margin-top: 112px; }
+  .round-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 7px; padding: 0 4px; flex-wrap: wrap; gap: 6px; }
+  .round-title { font-size: 15px; font-weight: 800; color: var(--gold); }
+  .round-rest-badge { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: rgba(148, 163, 184, 0.18); color: #cbd5e1; border: 1px solid var(--border); }
+  .round-status { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: var(--surface-2); color: var(--text-muted); }
+  .round-status.done { background: var(--green-bg); color: #86efac; }
+
+  .match-card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 11px; margin-bottom: 9px; }
+  .match-card.completed { border-color: rgba(34, 197, 94, 0.55); }
+  .match-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 9px; gap: 6px; }
+  .match-actions { display: flex; align-items: center; gap: 5px; }
+  .edit-match-btn { background: rgba(56, 189, 248, 0.14); color: var(--accent); border: 1px solid rgba(56, 189, 248, 0.45); border-radius: 6px; padding: 3px 8px; font-size: 11px; font-weight: 700; cursor: pointer; }
+  .court-badge { font-size: 12px; font-weight: 800; padding: 3px 10px; border-radius: 6px; background: rgba(56, 189, 248, 0.16); color: var(--accent); border: 1px solid rgba(56, 189, 248, 0.35); }
+  .court-badge.alt { background: rgba(250, 204, 21, 0.14); color: var(--gold); border-color: rgba(250, 204, 21, 0.35); }
+  .rate-diff-badge { font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: 6px; background: var(--purple-bg); color: #ddd6fe; border: 1px solid rgba(167, 139, 250, 0.35); }
+  .number-match-line { display: flex; align-items: center; justify-content: center; gap: 12px; padding: 10px 8px; background: var(--surface-2); border-radius: 10px; font-size: 17px; font-weight: 800; }
+  .number-match-line .vs-lbl { color: var(--gold); font-size: 14px; }
+
+  .challenger-tag { display: inline-block; font-size: 10px; font-weight: 900; font-style: italic; padding: 1px 6px; border-radius: 4px; margin-left: 5px; vertical-align: middle; }
+  .challenger-tag.lv1 { background: rgba(56, 189, 248, 0.2); color: #7dd3fc; border: 1px solid rgba(56, 189, 248, 0.55); }
+  .challenger-tag.lv2 { background: rgba(245, 158, 11, 0.22); color: #fde68a; border: 1px solid rgba(245, 158, 11, 0.65); }
+  .challenger-tag.lv3 { background: linear-gradient(135deg, rgba(239, 68, 68, 0.35), rgba(217, 70, 239, 0.35)); color: #fda4af; border: 1px solid rgba(244, 63, 94, 0.75); }
+
+  .clear-btn { background: transparent; color: var(--text-muted); border: 1px solid var(--border); border-radius: 6px; padding: 3px 8px; font-size: 11px; cursor: pointer; }
+  .team-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 7px 9px; border-radius: 10px; background: var(--surface-2); border: 1px solid transparent; margin-bottom: 7px; }
+  .team-row:last-child { margin-bottom: 0; }
+  .team-row.winner { background: var(--green-bg); border-color: var(--green); }
+  .team-name { font-size: 14px; font-weight: 700; flex: 1; min-width: 0; }
+  .win-tag { display: inline-block; font-size: 10px; font-weight: 800; background: var(--green); color: #052e16; padding: 1px 5px; border-radius: 4px; margin-left: 5px; vertical-align: middle; }
+
+  .mode-pill { display: inline-block; font-size: 10px; font-weight: 800; padding: 2px 7px; border-radius: 999px; background: var(--purple-bg); color: #ddd6fe; border: 1px solid rgba(167, 139, 250, 0.4); }
+  .mode-pill.rand { background: rgba(56, 189, 248, 0.16); color: var(--accent); border-color: rgba(56, 189, 248, 0.35); }
+  .mode-pill.team { background: rgba(239, 68, 68, 0.2); color: #fca5a5; border-color: rgba(239, 68, 68, 0.5); }
+  .mode-pill.num { background: var(--teal-bg); color: #5eead4; border-color: rgba(20, 184, 166, 0.5); }
+
+  .score-controls { display: flex; align-items: center; gap: 4px; }
+  .btn-quick { background: var(--accent-dark); color: #fff; border: none; border-radius: 8px; height: 36px; padding: 0 9px; font-size: 13px; font-weight: 800; cursor: pointer; }
+  .btn-step { background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 8px; width: 32px; height: 36px; font-size: 17px; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+  .score-input { width: 48px !important; height: 36px; padding: 4px !important; text-align: center; font-size: 16px !important; font-weight: 800; -moz-appearance: textfield; }
+  .score-input::-webkit-outer-spin-button, .score-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+
+  /* Round Tools Box (Append / Cleanup / Mid-session Regen) */
+  .append-round-box { background: var(--surface); border: 1px dashed var(--accent); border-radius: 14px; padding: 13px; margin-top: 14px; }
+  .append-single-row { display: grid; grid-template-columns: 1fr 1.3fr; gap: 8px; align-items: center; margin-top: 8px; }
+  .round-ops-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(58, 80, 107, 0.55); }
+
+  /* History & Tables */
+  .history-card { background: var(--surface-2); border: 1px solid var(--border); border-radius: 12px; padding: 12px; margin-bottom: 10px; }
+  .history-card.is-current { border-color: var(--accent); box-shadow: 0 0 0 1px rgba(56, 189, 248, 0.35); }
+  .history-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; margin-bottom: 6px; }
+  .history-title { font-size: 14px; font-weight: 800; color: var(--text); }
+  .history-date { font-size: 11px; font-weight: 700; color: var(--gold); background: rgba(250, 204, 21, 0.12); padding: 2px 7px; border-radius: 6px; white-space: nowrap; }
+  .history-meta { font-size: 12px; color: var(--text-muted); margin-bottom: 9px; }
+  .history-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; white-space: nowrap; }
+  th, td { padding: 7px 6px; text-align: center; border-bottom: 1px solid rgba(58, 80, 107, 0.55); }
+  th { color: var(--text-muted); font-size: 11px; font-weight: 700; }
+  td.left, th.left { text-align: left; }
+  .pos { color: #86efac; font-weight: 700; }
+  .neg { color: #fca5a5; font-weight: 700; }
+  .rate-val { color: #ddd6fe; font-weight: 800; }
+  .summary-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-bottom: 12px; }
+  .stat-pill { background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px; padding: 9px 10px; }
+  .stat-pill .lbl { font-size: 11px; color: var(--text-muted); }
+  .stat-pill .val { font-size: 15px; font-weight: 800; color: var(--text); margin-top: 2px; }
+  .export-textarea { width: 100%; height: 165px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; resize: vertical; }
+  .img-preview-wrap { margin-top: 12px; text-align: center; display: none; }
+  .img-preview-wrap img { max-width: 100%; border-radius: 10px; border: 1px solid var(--border); box-shadow: 0 8px 24px rgba(0,0,0,0.45); }
+
+  /* Modals */
+  .modal-backdrop {
+    position: fixed; inset: 0; background: rgba(5, 10, 24, 0.78); backdrop-filter: blur(4px);
+    z-index: 500; display: none; align-items: center; justify-content: center; padding: 14px;
+  }
+  .modal-backdrop.open { display: flex; }
+  .modal-dialog {
+    width: 100%; max-width: 460px; max-height: 90vh; overflow-y: auto;
+    background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 16px;
+    box-shadow: 0 16px 40px rgba(0,0,0,0.55);
+  }
+  .modal-title { font-size: 15px; font-weight: 800; color: var(--gold); margin: 0 0 6px 0; }
+  .modal-sub { font-size: 12px; color: var(--text-muted); margin: 0 0 12px 0; }
+  .edit-team-box { background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px; padding: 10px; margin-bottom: 10px; }
+  .edit-team-box.red { border-color: rgba(239, 68, 68, 0.55); }
+  .edit-team-box.white { border-color: rgba(226, 232, 240, 0.55); }
+  .edit-team-lbl { font-size: 12px; font-weight: 800; color: var(--accent); margin-bottom: 7px; }
+  .edit-pair-selects { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .edit-warn-box { display: none; background: var(--amber-bg); border: 1px solid rgba(245, 158, 11, 0.6); color: #fde68a; font-size: 12px; font-weight: 700; border-radius: 9px; padding: 8px 10px; margin-bottom: 10px; }
+  .edit-warn-box.error { background: var(--red-bg); border-color: rgba(239, 68, 68, 0.65); color: #fca5a5; }
+  .modal-footer { display: grid; grid-template-columns: 1fr 1.4fr; gap: 8px; margin-top: 12px; }
+
+  .regen-player-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 6px; max-height: 220px; overflow-y: auto; padding: 4px 0; margin-bottom: 10px; }
+  .regen-chip {
+    background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px;
+    padding: 7px 8px; font-size: 12px; font-weight: 700; cursor: pointer; display: flex; justify-content: space-between; align-items: center; user-select: none;
+  }
+  .regen-chip.active { background: rgba(2, 132, 199, 0.3); border-color: var(--accent); color: #fff; }
+
+  .toast {
+    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(20px);
+    background: #16a34a; color: #fff; padding: 10px 18px; border-radius: 999px; font-size: 13px; font-weight: 700;
+    opacity: 0; pointer-events: none; transition: all 0.25s; z-index: 999; box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  body.hide-ratings .rating-only { display: none !important; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-top">
+    <h1 id="headerTitle">バドミントン対戦表（v9）</h1>
+    <div class="header-right">
+      <button class="privacy-btn" id="btnTogglePrivacy">レート表示</button>
+      <div class="progress-badge" id="progressBadge">0 / 30</div>
+    </div>
+  </div>
+  <div class="tabs">
+    <button class="tab-btn active" data-tab="input">スコア</button>
+    <button class="tab-btn" data-tab="setup">設定・作成</button>
+    <button class="tab-btn" data-tab="stats">戦績・相性</button>
+    <button class="tab-btn" data-tab="history">開催履歴</button>
+    <button class="tab-btn" data-tab="export">画像・出力</button>
+  </div>
+</header>
+
+<div class="container">
+  <!-- TAB 1: SCORE INPUT -->
+  <section id="tab-input" class="tab-panel active">
+    <div class="number-mode-banner" id="numberModeBanner">
+      <div class="b-title">番号のみ（その場限り）モード表示中</div>
+      <div class="b-desc">結果記録・履歴保存・レート計算の対象外です。対戦表の確認や画像保存・テキスト共有にご利用ください。</div>
+      <div class="btn-row" style="margin-bottom:0;">
+        <button class="action-btn btn-gold btn-small" id="btnQuickJumpImage">対戦表を画像保存・共有する</button>
+      </div>
+    </div>
+
+    <div class="score-toolbar" id="scoreToolbar">
+      <span class="lbl">試合ルール（ワンタップ点数）：</span>
+      <div class="mini-seg">
+        <button class="mini-seg-btn active" data-matchpts="21">21点マッチ</button>
+        <button class="mini-seg-btn" data-matchpts="15">15点マッチ</button>
+      </div>
+    </div>
+
+    <div class="jump-bar" id="jumpBar"></div>
+    <div id="roundsContainer"></div>
+
+    <!-- Append / Mid-session Regen / Cleanup Box -->
+    <div class="append-round-box">
+      <button class="action-btn btn-primary" id="btnAppendFullRound" style="margin-bottom:6px;">＋ 全コートで1ラウンド追加</button>
+      <div class="append-single-row" id="appendSingleRow">
+        <select id="selAppendCourt"></select>
+        <button class="action-btn btn-secondary" id="btnAppendSingleCourt" style="margin-bottom:0;padding:10px 8px;font-size:12px;">＋ この1コートだけ追加</button>
+      </div>
+      <div class="round-ops-grid">
+        <button class="action-btn btn-amber" id="btnOpenRegenModal" style="margin-bottom:0;padding:10px 8px;font-size:12px;">🔄 途中参加・早退<br>残りRを再生成</button>
+        <button class="action-btn btn-danger" id="btnCleanupUnplayed" style="margin-bottom:0;padding:10px 8px;font-size:12px;">🧹 未消化ラウンドを<br>一括消去</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- TAB 2: SETUP & GENERATOR -->
+  <section id="tab-setup" class="tab-panel">
+    <div class="card-box">
+      <h2>組み合わせモード選択</h2>
+      <div class="seg-bar cols-4">
+        <button class="seg-btn active" data-genmode="random">ランダム</button>
+        <button class="seg-btn rating-mode" data-genmode="rating">実力拮抗</button>
+        <button class="seg-btn team-mode" data-genmode="team">紅白戦</button>
+        <button class="seg-btn number-mode" data-genmode="number">番号のみ</button>
+      </div>
+      <p class="note" id="genModeDesc" style="margin-bottom:0;"></p>
+    </div>
+
+    <div class="number-box-setup" id="numberModeSetupBox">
+      <label class="field-label" for="inpNumberPlayers" style="color:#5eead4;">番号のみモード：参加人数（4〜40名）</label>
+      <div class="form-row" style="align-items:center;">
+        <input type="number" id="inpNumberPlayers" min="4" max="40" value="8">
+        <div class="note" id="numberCountHint" style="margin:0;color:#ccfbf1;">1番〜8番の番号で作成します</div>
+      </div>
+    </div>
+
+    <div class="card-box">
+      <h2>試合条件・コート・点数ルール</h2>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="field-label" for="inpDate">開催日</label>
+          <input type="date" id="inpDate">
+        </div>
+        <div class="form-group">
+          <label class="field-label" for="inpRounds">ラウンド数（1〜30）</label>
+          <input type="number" id="inpRounds" min="1" max="30" value="15">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="field-label">試合点数ルール（全モード共通）</label>
+        <div class="seg-bar" style="margin-bottom:0;">
+          <button class="seg-btn active" data-setuppts="21">21点マッチ</button>
+          <button class="seg-btn" data-setuppts="15">15点マッチ</button>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="field-label" for="inpTitle">大会・練習会タイトル</label>
+        <input type="text" id="inpTitle" value="バドミントン ダブルス対戦表">
+      </div>
+      <div class="form-group" style="margin-bottom:0;">
+        <label class="field-label" for="inpCourts">コート名（カンマ区切り・5コート以上も対応）</label>
+        <input type="text" id="inpCourts" value="10番コート, 11番コート">
+      </div>
+    </div>
+
+    <div id="namedModeSections">
+      <!-- Today's Attendees -->
+      <div class="card-box">
+        <h2>
+          <span>今日の参加者を選択</span>
+          <span class="progress-badge" id="attendCountBadge">0名選択中</span>
+        </h2>
+        <div class="btn-row">
+          <button class="action-btn btn-secondary btn-small" id="btnAttendAll">全員選択</button>
+          <button class="action-btn btn-secondary btn-small" id="btnAttendNone">全解除</button>
+          <button class="action-btn btn-secondary btn-small" id="btnAttendPrev">前回参加者を復元</button>
+        </div>
+        <div class="filter-pills" id="attendTeamFilterBar"></div>
+        <div class="attend-grid" id="attendGrid"></div>
+        <div class="note" id="playerCountHint" style="margin-bottom:0;"></div>
+      </div>
+
+      <!-- Team Mode Assignment -->
+      <div class="card-box" id="teamModeSetupCard" style="display:none; border-color: rgba(239,68,68,0.5);">
+        <h2>
+          <span>紅白戦 チーム振り分け</span>
+          <span class="mode-pill team" id="teamBalanceBadge">差 0.00</span>
+        </h2>
+        <p class="note">メンバーをタップすると紅組⇔白組を切り替えられます。紅・白それぞれ最低「コート数×2名」が必要です。</p>
+        <div class="form-group">
+          <label class="field-label">紅白戦の対戦マッチング方式</label>
+          <div class="seg-bar" style="margin-bottom:0;">
+            <button class="seg-btn active" data-teamsub="random">ランダム対戦</button>
+            <button class="seg-btn rating-mode" data-teamsub="rating">レート拮抗対戦</button>
+          </div>
+        </div>
+        <div class="btn-row">
+          <button class="action-btn btn-purple btn-small" id="btnAutoAssignTeams">現在レート均等振り分け</button>
+          <button class="action-btn btn-secondary btn-small" id="btnShuffleTeams">ランダム振り分け</button>
+          <button class="action-btn btn-teal btn-small" id="btnAssignByAffil">所属チームで紅白セット</button>
+        </div>
+        <div class="note" id="teamCountWarning" style="margin-bottom:4px;"></div>
+        <div class="team-assign-grid">
+          <div class="team-col red-col">
+            <div class="team-col-header"><span>紅組 (<span id="redCountLbl">0</span>名)</span><span class="rating-only" id="redRateLbl">計 0.0</span></div>
+            <div class="team-chip-list" id="redTeamList"></div>
+          </div>
+          <div class="team-col white-col">
+            <div class="team-col-header"><span>白組 (<span id="whiteCountLbl">0</span>名)</span><span class="rating-only" id="whiteRateLbl">計 0.0</span></div>
+            <div class="team-chip-list" id="whiteTeamList"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Collapsible: Member Master (with Affiliation & Rename) -->
+      <details class="acc-card">
+        <summary>
+          <span>メンバーマスター管理（所属・改名・最大50名）</span>
+          <span class="progress-badge" id="masterCountBadge">0 / 50名</span>
+        </summary>
+        <div class="acc-body">
+          <p class="note">「改名」ボタンで過去履歴・レートごと一括リネームできます。所属チームを入れると当日選択や紅白戦セットが楽になります。</p>
+          <div class="inline-add-row">
+            <input type="text" id="inpNewMemberName" placeholder="名前">
+            <input type="text" id="inpNewMemberTeam" placeholder="所属(任意)">
+            <input type="number" id="inpNewMemberRate" min="1" max="10" step="0.1" value="5.0" placeholder="R">
+            <button class="action-btn btn-primary btn-small" id="btnAddMember" style="height:38px;">登録</button>
+          </div>
+          <div class="btn-row">
+            <button class="action-btn btn-secondary btn-small" id="btnBulkAddToggle">複数名を一括登録</button>
+            <button class="action-btn btn-secondary btn-small rating-only" id="btnResetInitRatings">初期レート全員5.0</button>
+          </div>
+          <div id="bulkAddArea" style="display:none;margin-bottom:10px;">
+            <textarea id="inpBulkNames" style="height:64px;margin-bottom:6px;" placeholder="読点「、」・カンマ・改行区切りで入力"></textarea>
+            <button class="action-btn btn-primary btn-small" id="btnBulkAddExec">一括追加を実行</button>
+          </div>
+          <div class="master-list-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th class="left">名前</th>
+                  <th>所属</th>
+                  <th class="rating-only">初期R</th>
+                  <th class="rating-only">現在R</th>
+                  <th>操作</th>
+                </tr>
+              </thead>
+              <tbody id="masterTableBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </details>
+
+      <!-- Collapsible: Fixed Pairs -->
+      <details class="acc-card">
+        <summary>
+          <span>固定ペア指定（任意）</span>
+          <span class="progress-badge" id="fixedPairCountBadge">0件</span>
+        </summary>
+        <div class="acc-body">
+          <p class="note">「毎回固定」は2人とも出場時に常にペア、「回数指定」はその回数だけ必ずペアを組みます。</p>
+          <div class="btn-row"><button class="action-btn btn-secondary btn-small" id="btnAddFixedPair">＋ 固定ペアを追加</button></div>
+          <div id="fixedPairsList"></div>
+        </div>
+      </details>
+
+      <!-- Collapsible: Co-op NG / Wish -->
+      <details class="acc-card">
+        <summary>
+          <span>共演NG・共演希望オプション（任意）</span>
+          <span class="progress-badge" id="relationCountBadge">0件</span>
+        </summary>
+        <div class="acc-body">
+          <p class="note">「共演NG」は同コートを強く回避、「共演希望」は同コート（ペアor対戦）を優遇します。</p>
+          <div class="btn-row">
+            <button class="action-btn btn-danger btn-small" id="btnAddNgRel">＋ 共演NGを追加</button>
+            <button class="action-btn btn-emerald btn-small" id="btnAddWishRel">＋ 共演希望を追加</button>
+          </div>
+          <div id="relationsList"></div>
+        </div>
+      </details>
+
+      <!-- Collapsible: Protagonists & Reserved Matches -->
+      <details class="acc-card">
+        <summary>
+          <span>主人公コート固定（最大3名）・固定試合予約</span>
+          <span class="progress-badge" id="specialCountBadge">0件</span>
+        </summary>
+        <div class="acc-body">
+          <h3 style="margin-top:0;">主人公のコート固定（最大3名・登録順が優先順位）</h3>
+          <div class="btn-row"><button class="action-btn btn-secondary btn-small" id="btnAddProtagonist">＋ 主人公を追加（最大3名）</button></div>
+          <div id="protagonistsList"></div>
+          <h3>固定試合の事前予約（指定R・指定コートに4名固定）</h3>
+          <div class="btn-row"><button class="action-btn btn-secondary btn-small" id="btnAddReservedMatch">＋ 固定試合を予約</button></div>
+          <div id="reservedMatchesList"></div>
+        </div>
+      </details>
+    </div>
+
+    <div class="card-box">
+      <button class="action-btn btn-primary" id="btnGenerate">完全ランダムモードで対戦表を作成する</button>
+      <p class="note" style="margin-bottom:0;">※既存開催にスコアがある場合、作成前に「開催履歴」へ保存するか確認します。</p>
+    </div>
+
+    <div class="card-box" id="verifyBox">
+      <h2><span>現在の対戦表 検証サマリー</span><span class="mode-pill rand" id="verifyModePill">完全ランダム</span></h2>
+      <div class="summary-grid" id="verifyMetrics"></div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th class="left">参加者</th><th class="rating-only" id="verifyRateTh">現在R</th><th>出場数</th><th>休憩数</th><th>連続休憩</th></tr></thead>
+          <tbody id="verifyBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- TAB 3: STATS & CHEMISTRY -->
+  <section id="tab-stats" class="tab-panel">
+    <div class="seg-bar">
+      <button class="seg-btn active" data-scope="current">今回の開催のみ</button>
+      <button class="seg-btn" data-scope="all">全期間通算（履歴＋今回）</button>
+    </div>
+    <p class="note" id="statsScopeNote" style="margin-left:4px;"></p>
+
+    <div class="card-box" id="teamStatsCard" style="display:none; border-color: rgba(239,68,68,0.55);">
+      <h2><span>紅白戦 チーム総合成績</span><span class="mode-pill team">紅組 vs 白組</span></h2>
+      <div id="teamScoreboardWrap"></div>
+    </div>
+
+    <div class="card-box">
+      <h2>個人成績ランキング</h2>
+      <div class="filter-pills" id="playerSortFilter">
+        <button class="pill-btn active" data-psort="winrate">勝率順</button>
+        <button class="pill-btn rating-only" data-psort="rating">現在レート順</button>
+        <button class="pill-btn" data-psort="diff">得失点差順</button>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>順位</th><th class="left">選手</th><th class="rating-only">現在レート</th><th>試合</th><th>勝-負</th><th>勝率</th><th>得失点</th></tr></thead>
+          <tbody id="playerStatsBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card-box">
+      <h2>選手別 ペア・対戦相性チェッカー</h2>
+      <div class="form-group"><select id="selAffinityPlayer"></select></div>
+      <h3>パートナー別相性</h3>
+      <div class="table-wrap"><table><thead><tr><th class="left">パートナー</th><th>試合</th><th>勝-負</th><th>勝率</th><th>得失点</th><th>平均差</th></tr></thead><tbody id="affinityPartnerBody"></tbody></table></div>
+      <h3>対戦相手別相性</h3>
+      <div class="table-wrap"><table><thead><tr><th class="left">対戦相手</th><th>試合</th><th>勝-負</th><th>勝率</th><th>得失点</th><th>平均差</th></tr></thead><tbody id="affinityOppBody"></tbody></table></div>
+    </div>
+
+    <div class="card-box">
+      <h2>ペア別成績ランキング</h2>
+      <div class="filter-pills" id="pairMinFilter">
+        <button class="pill-btn active" data-min="1">全ペア (1試合〜)</button>
+        <button class="pill-btn" data-min="2">2試合以上</button>
+        <button class="pill-btn" data-min="3">3試合以上</button>
+        <button class="pill-btn" data-min="5">5試合以上</button>
+      </div>
+      <div class="table-wrap"><table><thead><tr><th>順位</th><th class="left">ペア</th><th>試合</th><th>勝-負</th><th>勝率</th><th>得失点</th><th>平均差</th></tr></thead><tbody id="pairStatsBody"></tbody></table></div>
+    </div>
+  </section>
+
+  <!-- TAB 4: HISTORY -->
+  <section id="tab-history" class="tab-panel">
+    <div class="card-box">
+      <h2>現在の開催を履歴に保存</h2>
+      <p class="note">試合終了後に保存すると通算戦績・現在レート・ペア相性に反映されます。</p>
+      <div class="summary-grid" id="currentSessionInfo"></div>
+      <button class="action-btn btn-green" id="btnSaveToHistory">現在の開催を履歴に保存（上書き/追加）</button>
+    </div>
+    <div class="card-box">
+      <h2><span>保存済みの開催履歴</span><span class="progress-badge" id="historyCountBadge">0件</span></h2>
+      <div id="historyListContainer"></div>
+    </div>
+  </section>
+
+  <!-- TAB 5: IMAGE & EXPORT & FEE SPLIT -->
+  <section id="tab-export" class="tab-panel">
+    <!-- NEW: Fee Split Calculator -->
+    <div class="card-box" style="border-color: rgba(250, 204, 21, 0.45);">
+      <h2>参加費・シャトル代 割り勘計算＆共有</h2>
+      <p class="note">コート代・シャトル代から1人あたりの金額を自動計算し、WeChat/LINE用の清算テキストを作成します。</p>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="field-label" for="feeCurrency">通貨単位</label>
+          <select id="feeCurrency">
+            <option value="元">元（RMB）</option>
+            <option value="円">円（JPY）</option>
+            <option value="HK$">HK$</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="field-label" for="feeRoundUnit">端数切り上げ単位</label>
+          <select id="feeRoundUnit">
+            <option value="1">1単位（そのまま）</option>
+            <option value="5">5単位で切上げ</option>
+            <option value="10">10単位で切上げ</option>
+            <option value="100">100単位で切上げ</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="field-label" for="feeCourtTotal">コート代 合計</label>
+          <input type="number" id="feeCourtTotal" min="0" value="300">
+        </div>
+        <div class="form-group">
+          <label class="field-label" for="feeOther">その他費用（水・会場費等）</label>
+          <input type="number" id="feeOther" min="0" value="0">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="field-label" for="feeShuttleUnit">シャトル単価（1個あたり）</label>
+          <input type="number" id="feeShuttleUnit" min="0" step="0.5" value="12">
+        </div>
+        <div class="form-group">
+          <label class="field-label" for="feeShuttleQty">使用シャトル個数</label>
+          <input type="number" id="feeShuttleQty" min="0" value="12">
+        </div>
+      </div>
+      <div class="form-row-3">
+        <div class="form-group">
+          <label class="field-label" for="feeNormalCnt">通常参加(名)</label>
+          <input type="number" id="feeNormalCnt" min="0" value="8">
+        </div>
+        <div class="form-group">
+          <label class="field-label" for="feeDiscountCnt">割引枠(名)</label>
+          <input type="number" id="feeDiscountCnt" min="0" value="0">
+        </div>
+        <div class="form-group">
+          <label class="field-label" for="feeDiscountOff">割引額(1人)</label>
+          <input type="number" id="feeDiscountOff" min="0" value="20">
+        </div>
+      </div>
+      <div class="summary-grid" id="feeSummaryGrid"></div>
+      <button class="action-btn btn-gold" id="btnCopyFeeText">清算テキストをコピー（WeChat/LINE用）</button>
+      <textarea class="export-textarea" id="feeTextPreview" style="height:125px;" readonly></textarea>
+    </div>
+
+    <div class="card-box">
+      <h2>試合結果レポート画像（参加者共有用）</h2>
+      <label class="toggle-row">
+        <span>全試合のスコア一覧もレポートに含める</span>
+        <input type="checkbox" id="chkReportIncludeMatches">
+      </label>
+      <button class="action-btn btn-emerald" id="btnSaveReportImage">試合結果レポート画像（PNG）を作成・保存</button>
+      <div class="img-preview-wrap" id="reportImgPreviewWrap">
+        <p class="note" style="margin-bottom:6px;">結果レポート画像プレビュー（長押しでも保存できます）</p>
+        <img id="reportImgPreview" alt="試合結果レポート画像">
+      </div>
+    </div>
+
+    <div class="card-box">
+      <h2>対戦表の共有（画像PNG・テキストコピー）</h2>
+      <label class="toggle-row">
+        <span>画像・テキストにチャレンジ演出を表示する</span>
+        <input type="checkbox" id="chkChallengeEffect" checked>
+      </label>
+      <button class="action-btn btn-gold" id="btnSaveImage">対戦表を画像（PNG）で作成・保存</button>
+      <button class="action-btn btn-secondary" id="btnCopyScheduleText">対戦表をテキストコピー（WeChat/LINE用）</button>
+      <div class="img-preview-wrap" id="imgPreviewWrap">
+        <p class="note" style="margin-bottom:6px;">対戦表プレビュー（長押しでも保存できます）</p>
+        <img id="scheduleImgPreview" alt="対戦表画像">
+      </div>
+      <p class="note" style="margin-top:10px;">共有用テキストプレビュー：</p>
+      <textarea class="export-textarea" id="scheduleTextPreview" style="height:130px;" readonly></textarea>
+    </div>
+
+    <div class="card-box">
+      <h2>Gemini分析用データ出力</h2>
+      <div class="seg-bar">
+        <button class="seg-btn active" data-exscope="current">今回の試合のみ</button>
+        <button class="seg-btn" data-exscope="all">全期間（履歴＋今回）</button>
+      </div>
+      <button class="action-btn btn-primary" id="btnCopyGemini">Gemini分析用プロンプト＆データをコピー</button>
+      <button class="action-btn btn-secondary" id="btnDownloadCsv">CSVファイルで保存（Excel対応）</button>
+      <textarea class="export-textarea" id="exportPreview" readonly></textarea>
+    </div>
+
+    <div class="card-box">
+      <h2>全データのバックアップ・復元（JSON）</h2>
+      <button class="action-btn btn-secondary" id="btnBackupJson">全データをバックアップ保存（JSON）</button>
+      <button class="action-btn btn-secondary" id="btnRestoreJson">バックアップから復元（JSON読込）</button>
+      <input type="file" id="inpRestoreFile" accept=".json,application/json" style="display:none;">
+      <button class="action-btn btn-danger" id="btnResetScores" style="margin-top:14px;">現在のスコアのみリセットする</button>
+    </div>
+  </section>
+</div>
+
+<!-- Match Edit Modal -->
+<div class="modal-backdrop" id="editMatchModal">
+  <div class="modal-dialog">
+    <h3 class="modal-title" id="editModalTitle">試合メンバーを手動変更</h3>
+    <p class="modal-sub" id="editModalSub"></p>
+    <div class="edit-team-box" id="editBoxP1">
+      <div class="edit-team-lbl" id="editLblP1">ペア1</div>
+      <div class="edit-pair-selects"><select id="editSelP1A"></select><select id="editSelP1B"></select></div>
+    </div>
+    <div class="edit-team-box" id="editBoxP2">
+      <div class="edit-team-lbl" id="editLblP2">ペア2</div>
+      <div class="edit-pair-selects"><select id="editSelP2A"></select><select id="editSelP2B"></select></div>
+    </div>
+    <div class="edit-warn-box" id="editMatchWarn"></div>
+    <div class="modal-footer">
+      <button class="action-btn btn-secondary" id="btnCancelEditMatch" style="margin-bottom:0;">キャンセル</button>
+      <button class="action-btn btn-primary" id="btnSaveEditMatch" style="margin-bottom:0;">変更を保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- Mid-Session Regenerate Modal -->
+<div class="modal-backdrop" id="regenModal">
+  <div class="modal-dialog">
+    <h3 class="modal-title">途中参加・早退：残りラウンド再生成</h3>
+    <p class="modal-sub">指定ラウンドより前の試合・スコアはそのまま保持し、指定ラウンド以降を新しいメンバーで再最適化します。</p>
+    <div class="form-group">
+      <label class="field-label" for="selRegenStartRound">再生成を開始するラウンド</label>
+      <select id="selRegenStartRound"></select>
+    </div>
+    <label class="field-label">残りラウンドの参加メンバー（タップでON/OFF）</label>
+    <div class="regen-player-grid" id="regenPlayerGrid"></div>
+    <div class="note" id="regenHint" style="margin-bottom:8px;"></div>
+    <div class="modal-footer">
+      <button class="action-btn btn-secondary" id="btnCancelRegen" style="margin-bottom:0;">キャンセル</button>
+      <button class="action-btn btn-amber" id="btnExecRegen" style="margin-bottom:0;">残りRを再生成する</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast">完了しました</div>
+
+<script>
+const STORAGE_KEY_V9 = "badminton_allinone_v9";
+const STORAGE_KEY_V8 = "badminton_allinone_v8";
+const STORAGE_KEY_V7 = "badminton_allinone_v7";
+const STORAGE_KEY_V6 = "badminton_allinone_v6";
+const STORAGE_KEY_V5 = "badminton_allinone_v5";
+const STORAGE_KEY_V4 = "badminton_allinone_v4";
+const STORAGE_KEY_V3 = "badminton_allinone_v3";
+const MAX_MEMBERS = 50;
+const DEFAULT_RATING = 5.0;
+const ELO_K = 0.16;
+
+function todayStr() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+function genId() { return "sess_" + Date.now() + "_" + Math.random().toString(36).slice(2, 7); }
+function deepClone(obj) { return JSON.parse(JSON.stringify(obj)); }
+function clampRating(val) { return Math.max(1.0, Math.min(10.0, val)); }
+
+const DEFAULT_PLAYERS = ["選手1", "選手2", "選手3", "選手4", "選手5", "選手6", "選手7", "選手8"];
+const DEFAULT_FEE_CONFIG = {
+  currency: "元", roundUnit: 1, courtTotal: 300, other: 0,
+  shuttleUnit: 12, shuttleQty: 12, normalCnt: 8, discountCnt: 0, discountOff: 20
+};
+
+const DEFAULT_SESSION = {
+  id: "sess_default_15r",
+  date: todayStr(),
+  config: {
+    title: "バドミントン ダブルス対戦表",
+    players: [...DEFAULT_PLAYERS],
+    rounds: 15,
+    courts: ["10番コート", "11番コート"],
+    fixedPairs: [],
+    relations: [],
+    protagonists: [],
+    reservedMatches: [],
+    mode: "random",
+    teamSubMode: "random",
+    teams: { red: [], white: [] },
+    matchPoints: 21
+  },
+  schedule: [
+    { r: 1,  matches: [{ court: "10番コート", p1: ["選手1","選手8"], p2: ["選手2","選手4"] }, { court: "11番コート", p1: ["選手3","選手7"], p2: ["選手5","選手6"] }], rest: [] },
+    { r: 2,  matches: [{ court: "10番コート", p1: ["選手2","選手8"], p2: ["選手3","選手5"] },   { court: "11番コート", p1: ["選手1","選手4"], p2: ["選手6","選手7"] }], rest: [] },
+    { r: 3,  matches: [{ court: "10番コート", p1: ["選手3","選手8"], p2: ["選手4","選手6"] }, { court: "11番コート", p1: ["選手2","選手5"], p2: ["選手1","選手7"] }], rest: [] },
+    { r: 4,  matches: [{ court: "10番コート", p1: ["選手4","選手8"], p2: ["選手5","選手7"] }, { court: "11番コート", p1: ["選手3","選手6"], p2: ["選手1","選手2"] }], rest: [] },
+    { r: 5,  matches: [{ court: "10番コート", p1: ["選手5","選手8"], p2: ["選手1","選手6"] },   { court: "11番コート", p1: ["選手4","選手7"], p2: ["選手2","選手3"] }], rest: [] },
+    { r: 6,  matches: [{ court: "10番コート", p1: ["選手6","選手8"], p2: ["選手2","選手7"] },   { court: "11番コート", p1: ["選手1","選手5"], p2: ["選手3","選手4"] }], rest: [] },
+    { r: 7,  matches: [{ court: "10番コート", p1: ["選手7","選手8"], p2: ["選手1","選手3"] },   { court: "11番コート", p1: ["選手2","選手6"], p2: ["選手4","選手5"] }], rest: [] },
+    { r: 8,  matches: [{ court: "10番コート", p1: ["選手1","選手8"], p2: ["選手3","選手7"] },   { court: "11番コート", p1: ["選手2","選手4"], p2: ["選手5","選手6"] }], rest: [] },
+    { r: 9,  matches: [{ court: "10番コート", p1: ["選手2","選手8"], p2: ["選手1","選手4"] }, { court: "11番コート", p1: ["選手3","選手5"], p2: ["選手6","選手7"] }], rest: [] },
+    { r: 10, matches: [{ court: "10番コート", p1: ["選手3","選手8"], p2: ["選手2","選手5"] },   { court: "11番コート", p1: ["選手4","選手6"], p2: ["選手1","選手7"] }], rest: [] },
+    { r: 11, matches: [{ court: "10番コート", p1: ["選手4","選手8"], p2: ["選手3","選手6"] }, { court: "11番コート", p1: ["選手5","選手7"], p2: ["選手1","選手2"] }], rest: [] },
+    { r: 12, matches: [{ court: "10番コート", p1: ["選手5","選手8"], p2: ["選手4","選手7"] }, { court: "11番コート", p1: ["選手1","選手6"], p2: ["選手2","選手3"] }], rest: [] },
+    { r: 13, matches: [{ court: "10番コート", p1: ["選手6","選手8"], p2: ["選手1","選手5"] },   { court: "11番コート", p1: ["選手2","選手7"], p2: ["選手3","選手4"] }], rest: [] },
+    { r: 14, matches: [{ court: "10番コート", p1: ["選手7","選手8"], p2: ["選手2","選手6"] },   { court: "11番コート", p1: ["選手1","選手3"], p2: ["選手4","選手5"] }], rest: [] },
+    { r: 15, matches: [{ court: "10番コート", p1: ["選手1","選手8"], p2: ["選手5","選手6"] },   { court: "11番コート", p1: ["選手2","選手4"], p2: ["選手3","選手7"] }], rest: [] }
+  ],
+  scores: {}
+};
+
+let appState = {
+  current: deepClone(DEFAULT_SESSION),
+  history: [],
+  memberMaster: [...DEFAULT_PLAYERS],
+  memberTeams: {},          // { playerName: "所属チーム名" }
+  selectedAttendees: [...DEFAULT_PLAYERS],
+  lastAttendees: [...DEFAULT_PLAYERS],
+  initialRatings: {},
+  draftTeams: { red: [], white: [] },
+  feeConfig: deepClone(DEFAULT_FEE_CONFIG),
+  hideRatings: false,
+  showChallenge: true,
+  reportIncludeMatches: false
+};
+
+let statsScope = "current";
+let exportScope = "current";
+let playerSortBy = "winrate";
+let pairMinGames = 1;
+let selectedAffinityPlayer = "";
+let selectedGenMode = "random";
+let selectedTeamSubMode = "random";
+let selectedSetupPts = 21;
+let attendTeamFilter = "ALL";
+let draftFixedPairs = [];
+let draftRelations = [];
+let draftProtagonists = [];
+let draftReservedMatches = [];
+
+function ensureV9Fields(state) {
+  const fixCfg = (cfg) => {
+    if (!cfg.matchPoints) cfg.matchPoints = 21;
+    if (!cfg.teamSubMode) cfg.teamSubMode = "random";
+    if (!cfg.teams) cfg.teams = { red: [], white: [] };
+    if (!Array.isArray(cfg.fixedPairs)) cfg.fixedPairs = [];
+    if (!Array.isArray(cfg.relations)) cfg.relations = [];
+    if (!Array.isArray(cfg.protagonists)) cfg.protagonists = [];
+    if (!Array.isArray(cfg.reservedMatches)) cfg.reservedMatches = [];
+  };
+  fixCfg(state.current.config);
+  state.history.forEach(h => fixCfg(h.config));
+  if (!state.draftTeams) state.draftTeams = deepClone(state.current.config.teams);
+  if (!Array.isArray(state.memberMaster)) state.memberMaster = [...(state.current.config.players || DEFAULT_PLAYERS)];
+  if (!state.memberTeams || typeof state.memberTeams !== "object") state.memberTeams = {};
+  if (!Array.isArray(state.selectedAttendees)) state.selectedAttendees = [...(state.current.config.players || [])];
+  if (!Array.isArray(state.lastAttendees)) state.lastAttendees = [...state.selectedAttendees];
+  if (!state.initialRatings) state.initialRatings = {};
+  if (!state.feeConfig || typeof state.feeConfig !== "object") state.feeConfig = deepClone(DEFAULT_FEE_CONFIG);
+  if (typeof state.hideRatings !== "boolean") state.hideRatings = false;
+  if (typeof state.showChallenge !== "boolean") state.showChallenge = true;
+  if (typeof state.reportIncludeMatches !== "boolean") state.reportIncludeMatches = false;
+  return state;
+}
+
+function loadState() {
+  try {
+    const rawV9 = localStorage.getItem(STORAGE_KEY_V9);
+    if (rawV9) {
+      const p = JSON.parse(rawV9);
+      if (p && p.current && Array.isArray(p.history)) { appState = ensureV9Fields(p); return; }
+    }
+    const rawOld = localStorage.getItem(STORAGE_KEY_V8) || localStorage.getItem(STORAGE_KEY_V7) ||
+                   localStorage.getItem(STORAGE_KEY_V6) || localStorage.getItem(STORAGE_KEY_V5) ||
+                   localStorage.getItem(STORAGE_KEY_V4) || localStorage.getItem(STORAGE_KEY_V3);
+    if (rawOld) {
+      const p = JSON.parse(rawOld);
+      if (p && p.current && Array.isArray(p.history)) {
+        const allNames = new Set(p.memberMaster || p.current.config.players || []);
+        p.history.forEach(h => (h.config.players || []).forEach(n => allNames.add(n)));
+        Object.keys(p.initialRatings || {}).forEach(n => allNames.add(n));
+        appState = ensureV9Fields({
+          current: p.current,
+          history: p.history,
+          memberMaster: Array.from(allNames).slice(0, MAX_MEMBERS),
+          memberTeams: p.memberTeams || {},
+          selectedAttendees: [...(p.selectedAttendees || p.current.config.players || [])],
+          lastAttendees: [...(p.lastAttendees || p.current.config.players || [])],
+          initialRatings: p.initialRatings || {},
+          draftTeams: p.draftTeams || { red: [], white: [] },
+          feeConfig: p.feeConfig || deepClone(DEFAULT_FEE_CONFIG),
+          hideRatings: !!p.hideRatings,
+          showChallenge: p.showChallenge !== undefined ? !!p.showChallenge : true,
+          reportIncludeMatches: !!p.reportIncludeMatches
+        });
+        saveState();
+        return;
+      }
+    }
+  } catch (e) {}
+  appState = ensureV9Fields({
+    current: deepClone(DEFAULT_SESSION),
+    history: [],
+    memberMaster: [...DEFAULT_PLAYERS],
+    memberTeams: {},
+    selectedAttendees: [...DEFAULT_PLAYERS],
+    lastAttendees: [...DEFAULT_PLAYERS],
+    initialRatings: {},
+    draftTeams: { red: [], white: [] },
+    feeConfig: deepClone(DEFAULT_FEE_CONFIG),
+    hideRatings: false,
+    showChallenge: true,
+    reportIncludeMatches: false
+  });
+}
+
+function saveState() {
+  try { localStorage.setItem(STORAGE_KEY_V9, JSON.stringify(appState)); } catch (e) {}
+}
+
+function cur() { return appState.current; }
+function isCurNumberMode() { return cur().config.mode === "number"; }
+function isCurTeamMode() { return cur().config.mode === "team"; }
+function getCurMatchPts() { return cur().config.matchPoints === 15 ? 15 : 21; }
+function matchId(r, cIdx) { return `r${r}_c${cIdx}`; }
+function getScoreOf(session, id) { return (session.scores && session.scores[id]) || { s1: "", s2: "" }; }
+function isMatchValidOf(session, id) {
+  const sc = getScoreOf(session, id);
+  return sc.s1 !== "" && sc.s2 !== "" && !isNaN(Number(sc.s1)) && !isNaN(Number(sc.s2));
+}
+function countValidMatches(session) {
+  let total = 0, done = 0;
+  session.schedule.forEach(item => {
+    item.matches.forEach((_, idx) => {
+      total++;
+      if (isMatchValidOf(session, matchId(item.r, idx))) done++;
+    });
+  });
+  return { done, total };
+}
+function getSessionsForScope(scope) {
+  if (scope === "current") return isCurNumberMode() ? [] : [cur()];
+  const others = appState.history.filter(h => h.id !== cur().id && h.config.mode !== "number");
+  return isCurNumberMode() ? others : [...others, cur()];
+}
+function showToast(msg) {
+  const t = document.getElementById("toast");
+  t.textContent = msg;
+  t.classList.add("show");
+  setTimeout(() => t.classList.remove("show"), 2400);
+}
+
+// ==========================================
+// NEW V9: GLOBAL MEMBER RENAME
+// ==========================================
+function renameMemberGlobally(oldName, newName) {
+  const nn = (newName || "").trim();
+  if (!nn || nn === oldName) return false;
+  if (appState.memberMaster.includes(nn)) {
+    alert(`「${nn}」はすでに登録されています。別の名前を入力してください。`);
+    return false;
+  }
+  const repArr = (arr) => Array.isArray(arr) ? arr.map(x => x === oldName ? nn : x) : arr;
+  const repSess = (sess) => {
+    if (!sess || !sess.config) return;
+    const c = sess.config;
+    c.players = repArr(c.players);
+    if (c.teams) { c.teams.red = repArr(c.teams.red); c.teams.white = repArr(c.teams.white); }
+    (c.fixedPairs || []).forEach(fp => { if (fp.p1 === oldName) fp.p1 = nn; if (fp.p2 === oldName) fp.p2 = nn; });
+    (c.relations || []).forEach(rl => { if (rl.p1 === oldName) rl.p1 = nn; if (rl.p2 === oldName) rl.p2 = nn; });
+    (c.protagonists || []).forEach(pr => { if (pr.player === oldName) pr.player = nn; });
+    (c.reservedMatches || []).forEach(rm => { rm.p1 = repArr(rm.p1); rm.p2 = repArr(rm.p2); });
+    (sess.schedule || []).forEach(item => {
+      item.rest = repArr(item.rest);
+      (item.matches || []).forEach(m => { m.p1 = repArr(m.p1); m.p2 = repArr(m.p2); });
+    });
+  };
+
+  appState.memberMaster = repArr(appState.memberMaster);
+  appState.selectedAttendees = repArr(appState.selectedAttendees);
+  appState.lastAttendees = repArr(appState.lastAttendees);
+  if (appState.draftTeams) {
+    appState.draftTeams.red = repArr(appState.draftTeams.red);
+    appState.draftTeams.white = repArr(appState.draftTeams.white);
+  }
+  if (appState.initialRatings[oldName] !== undefined) {
+    appState.initialRatings[nn] = appState.initialRatings[oldName];
+    delete appState.initialRatings[oldName];
+  }
+  if (appState.memberTeams[oldName] !== undefined) {
+    appState.memberTeams[nn] = appState.memberTeams[oldName];
+    delete appState.memberTeams[oldName];
+  }
+  repSess(appState.current);
+  appState.history.forEach(repSess);
+  if (selectedAffinityPlayer === oldName) selectedAffinityPlayer = nn;
+
+  saveState();
+  renderAll();
+  showToast(`「${oldName}」を「${nn}」へ一括変更しました`);
+  return true;
+}
+
+// ==========================================
+// NEW V9: CLEANUP UNPLAYED ROUNDS
+// ==========================================
+function cleanupUnplayedRounds() {
+  if (isCurNumberMode()) { showToast("番号のみモードでは使用できません"); return; }
+  const sess = cur();
+  const unplayed = sess.schedule.filter(item =>
+    !item.matches.some((_, idx) => isMatchValidOf(sess, matchId(item.r, idx)))
+  );
+  if (unplayed.length === 0) {
+    showToast("未消化のラウンドはありません");
+    return;
+  }
+  if (unplayed.length === sess.schedule.length) {
+    alert("すべてのラウンドが未入力のため消去できません。");
+    return;
+  }
+  const rNums = unplayed.map(x => `R${x.r}`).join("・");
+  if (!confirm(`スコア未入力の ${unplayed.length}ラウンド（${rNums}）を消去して詰めますか？\n※入力済みのスコアと戦績はそのまま保持されます。`)) {
+    return;
+  }
+
+  const newSchedule = [];
+  const newScores = {};
+  let newR = 1;
+  sess.schedule.forEach(item => {
+    const hasAny = item.matches.some((_, idx) => isMatchValidOf(sess, matchId(item.r, idx)));
+    if (!hasAny) return;
+    item.matches.forEach((_, idx) => {
+      const oldId = matchId(item.r, idx);
+      if (sess.scores && sess.scores[oldId]) newScores[matchId(newR, idx)] = deepClone(sess.scores[oldId]);
+    });
+    newSchedule.push({ r: newR, matches: item.matches, rest: item.rest });
+    newR++;
+  });
+
+  sess.schedule = newSchedule;
+  sess.scores = newScores;
+  sess.config.rounds = newSchedule.length;
+  saveState();
+  renderAll();
+  showToast(`未消化の ${unplayed.length}ラウンドを消去しました`);
+}
+
+// ==========================================
+// ELO RATING ENGINE
+// ==========================================
+function getInitialRating(name) {
+  const v = appState.initialRatings[name];
+  return (typeof v === "number" && !isNaN(v)) ? clampRating(v) : DEFAULT_RATING;
+}
+
+function computeAllRatings() {
+  const sessions = getSessionsForScope("all");
+  const sortedSessions = [...sessions].sort((a, b) => {
+    const da = a.date || "0000-00-00", db = b.date || "0000-00-00";
+    if (da !== db) return da.localeCompare(db);
+    return (a.id || "").localeCompare(b.id || "");
+  });
+  const ratings = {}, matchCount = {}, curBefore = {}, curAfter = {}, curDelta = {};
+  const ensure = (p) => { if (ratings[p] === undefined) { ratings[p] = getInitialRating(p); matchCount[p] = 0; } };
+  appState.memberMaster.forEach(ensure);
+  Object.keys(appState.initialRatings).forEach(ensure);
+  sortedSessions.forEach(sess => (sess.config.players || []).forEach(ensure));
+
+  sortedSessions.forEach(sess => {
+    const isCurrentSess = (sess.id === cur().id);
+    const maxMovRef = (sess.config.matchPoints === 15) ? 10.0 : 15.0;
+    if (isCurrentSess) Object.keys(ratings).forEach(p => { curBefore[p] = ratings[p]; });
+
+    sess.schedule.forEach(item => {
+      item.matches.forEach((m, idx) => {
+        const id = matchId(item.r, idx);
+        if (!isMatchValidOf(sess, id)) return;
+        const sc = getScoreOf(sess, id);
+        const s1 = Number(sc.s1), s2 = Number(sc.s2);
+        const [a1, a2] = m.p1, [b1, b2] = m.p2;
+        [a1, a2, b1, b2].forEach(ensure);
+        if (isCurrentSess) [a1, a2, b1, b2].forEach(p => { if (curBefore[p] === undefined) curBefore[p] = ratings[p]; });
+
+        const avgA = (ratings[a1] + ratings[a2]) / 2.0, avgB = (ratings[b1] + ratings[b2]) / 2.0;
+        const expA = 1.0 / (1.0 + Math.pow(10, (avgB - avgA) / 2.0));
+        const actA = s1 > s2 ? 1.0 : (s1 < s2 ? 0.0 : 0.5);
+        const movMult = 0.7 + 0.8 * Math.min(1.0, Math.abs(s1 - s2) / maxMovRef);
+        const delta = ELO_K * movMult * (actA - expA);
+
+        ratings[a1] = clampRating(ratings[a1] + delta); ratings[a2] = clampRating(ratings[a2] + delta);
+        ratings[b1] = clampRating(ratings[b1] - delta); ratings[b2] = clampRating(ratings[b2] - delta);
+        matchCount[a1]++; matchCount[a2]++; matchCount[b1]++; matchCount[b2]++;
+      });
+    });
+
+    if (isCurrentSess) {
+      Object.keys(ratings).forEach(p => {
+        curAfter[p] = ratings[p];
+        const b = curBefore[p] !== undefined ? curBefore[p] : getInitialRating(p);
+        curDelta[p] = ratings[p] - b;
+      });
+    }
+  });
+  return { ratings, matchCount, curBefore, curAfter, curDelta };
+}
+
+let cachedRatings = { ratings: {}, matchCount: {}, curBefore: {}, curAfter: {}, curDelta: {} };
+function refreshRatingsCache() { cachedRatings = computeAllRatings(); }
+
+function getChallengeInfo(p1, p2) {
+  if (isCurNumberMode()) return null;
+  const r1 = (cachedRatings.ratings[p1[0]] ?? DEFAULT_RATING) + (cachedRatings.ratings[p1[1]] ?? DEFAULT_RATING);
+  const r2 = (cachedRatings.ratings[p2[0]] ?? DEFAULT_RATING) + (cachedRatings.ratings[p2[1]] ?? DEFAULT_RATING);
+  const diff = Math.abs(r1 - r2);
+  if (diff < 1.5) return null;
+  const side = r1 < r2 ? 1 : 2;
+  if (diff >= 4.5) return { side, level: 3, label: "GIANT KILLING", stars: "★★★", short: "GK★★★", diff };
+  if (diff >= 3.0) return { side, level: 2, label: "UPSET", stars: "★★", short: "UPSET★★", diff };
+  return { side, level: 1, label: "CHALLENGE", stars: "★", short: "CHALLENGE★", diff };
+}
+
+// ==========================================
+// TEAM AUTO-ASSIGN & TEAM STATS
+// ==========================================
+function pairKey(a, b) { return a < b ? `${a}||${b}` : `${b}||${a}`; }
+function matchupKey(pa, pb) {
+  const k1 = pairKey(pa[0], pa[1]), k2 = pairKey(pb[0], pb[1]);
+  return k1 < k2 ? `${k1}##${k2}` : `${k2}##${k1}`;
+}
+function fourSetKey(pa, pb) { return [...pa, ...pb].sort().join("|"); }
+function shuffle(arr) {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
+  return a;
+}
+
+function autoAssignTeams(players, currentRatingsMap) {
+  const getR = (p) => (currentRatingsMap && currentRatingsMap[p] !== undefined) ? currentRatingsMap[p] : DEFAULT_RATING;
+  const targetRed = Math.ceil(players.length / 2), targetWhite = Math.floor(players.length / 2);
+  const sorted = shuffle(players).sort((a, b) => getR(b) - getR(a));
+  const red = [], white = [];
+  let sumR = 0, sumW = 0;
+
+  for (const p of sorted) {
+    const r = getR(p);
+    if (red.length < targetRed && (white.length >= targetWhite || sumR <= sumW)) { red.push(p); sumR += r; }
+    else { white.push(p); sumW += r; }
+  }
+  const evalDiff = (sR, sW) => red.length === white.length ? Math.abs(sR - sW) : Math.abs((sR / red.length) - (sW / white.length));
+  let improved = true, guard = 0;
+  while (improved && guard < 100) {
+    improved = false; guard++;
+    let bestI = -1, bestJ = -1, bestDiff = evalDiff(sumR, sumW) - 1e-6;
+    for (let i = 0; i < red.length; i++) for (let j = 0; j < white.length; j++) {
+      const rA = getR(red[i]), rB = getR(white[j]);
+      const d = evalDiff(sumR - rA + rB, sumW - rB + rA);
+      if (d < bestDiff) { bestDiff = d; bestI = i; bestJ = j; }
+    }
+    if (bestI >= 0) {
+      const tmp = red[bestI];
+      sumR = sumR - getR(tmp) + getR(white[bestJ]); sumW = sumW - getR(white[bestJ]) + getR(tmp);
+      red[bestI] = white[bestJ]; white[bestJ] = tmp; improved = true;
+    }
+  }
+  red.sort((a, b) => getR(b) - getR(a)); white.sort((a, b) => getR(b) - getR(a));
+  return { red, white, redSum: sumR, whiteSum: sumW };
+}
+
+function aggregateTeamStats(session) {
+  const res = { red: { wins: 0, losses: 0, draws: 0, pf: 0, pa: 0, diff: 0 }, white: { wins: 0, losses: 0, draws: 0, pf: 0, pa: 0, diff: 0 }, validMatches: 0, winner: "draw" };
+  if (!session || session.config.mode !== "team") return res;
+  session.schedule.forEach(item => item.matches.forEach((m, idx) => {
+    const id = matchId(item.r, idx);
+    if (!isMatchValidOf(session, id)) return;
+    const sc = getScoreOf(session, id), s1 = Number(sc.s1), s2 = Number(sc.s2);
+    res.validMatches++;
+    res.red.pf += s1; res.red.pa += s2; res.white.pf += s2; res.white.pa += s1;
+    if (s1 > s2) { res.red.wins++; res.white.losses++; }
+    else if (s2 > s1) { res.white.wins++; res.red.losses++; }
+    else { res.red.draws++; res.white.draws++; }
+  }));
+  res.red.diff = res.red.pf - res.red.pa; res.white.diff = res.white.pf - res.white.pa;
+  if (res.red.wins !== res.white.wins) res.winner = res.red.wins > res.white.wins ? "red" : "white";
+  else if (res.red.diff !== res.white.diff) res.winner = res.red.diff > res.white.diff ? "red" : "white";
+  else if (res.red.pf !== res.white.pf) res.winner = res.red.pf > res.white.pf ? "red" : "white";
+  return res;
+}
+
+// ==========================================
+// PROTAGONISTS, RESERVED MATCHES, RELATIONS & GENERATOR
+// ==========================================
+function applyProtagonistCourtLock(matches, courts, protagonists, reservedCourtSet = new Set()) {
+  if (!Array.isArray(protagonists) || protagonists.length === 0) return matches;
+  const lockedIdx = new Set();
+  courts.forEach((c, idx) => { if (reservedCourtSet.has(c)) lockedIdx.add(idx); });
+  for (const prot of protagonists) {
+    if (!prot || !prot.player || !prot.court) continue;
+    const targetIdx = courts.indexOf(prot.court);
+    if (targetIdx < 0 || !matches[targetIdx] || lockedIdx.has(targetIdx)) continue;
+    const protIdx = matches.findIndex(m => m.p1.includes(prot.player) || m.p2.includes(prot.player));
+    if (protIdx < 0) continue;
+    if (protIdx === targetIdx) { lockedIdx.add(targetIdx); continue; }
+    if (lockedIdx.has(protIdx)) continue;
+    const tmp1 = matches[targetIdx].p1, tmp2 = matches[targetIdx].p2;
+    matches[targetIdx].p1 = matches[protIdx].p1; matches[targetIdx].p2 = matches[protIdx].p2;
+    matches[protIdx].p1 = tmp1; matches[protIdx].p2 = tmp2;
+    lockedIdx.add(targetIdx);
+  }
+  return matches;
+}
+
+function buildReservedMapByRound(reservedMatches, players, courts, numRounds, mode, teams) {
+  const map = {};
+  if (mode === "number" || !Array.isArray(reservedMatches)) return map;
+  const playerSet = new Set(players), courtSet = new Set(courts);
+  const redSet = new Set(teams?.red || []), whiteSet = new Set(teams?.white || []);
+  for (const rm of reservedMatches) {
+    const r = parseInt(rm.r, 10);
+    if (!r || r < 1 || r > numRounds || !courtSet.has(rm.court)) continue;
+    const all4 = [...(rm.p1 || []), ...(rm.p2 || [])];
+    if (all4.some(p => !p)) continue;
+    if (all4.length !== 4 || new Set(all4).size !== 4) throw new Error(`固定試合（第${r}R・${rm.court}）に同じ選手が重複しています。`);
+    if (all4.some(p => !playerSet.has(p))) throw new Error(`固定試合（第${r}R・${rm.court}）に当日不参加の選手が含まれています。`);
+    if (mode === "team" && (!redSet.has(rm.p1[0]) || !redSet.has(rm.p1[1]) || !whiteSet.has(rm.p2[0]) || !whiteSet.has(rm.p2[1]))) {
+      throw new Error(`紅白戦の固定試合（第${r}R・${rm.court}）はペア1を紅組・ペア2を白組にしてください。`);
+    }
+    if (!map[r]) map[r] = [];
+    if (map[r].some(x => x.court === rm.court)) throw new Error(`第${r}Rの「${rm.court}」に固定試合が重複しています。`);
+    const usedInR = new Set(map[r].flatMap(x => [...x.p1, ...x.p2]));
+    if (all4.some(p => usedInR.has(p))) throw new Error(`第${r}Rの固定試合間で同じ選手が重複しています。`);
+    map[r].push({ court: rm.court, p1: [...rm.p1], p2: [...rm.p2] });
+  }
+  return map;
+}
+
+function parseRelations(relationsInput, players, mode) {
+  const ngSet = new Set(), wishSet = new Set();
+  if (mode === "number" || !Array.isArray(relationsInput)) return { ngSet, wishSet };
+  const pSet = new Set(players);
+  for (const rel of relationsInput) {
+    if (!rel.p1 || !rel.p2 || rel.p1 === rel.p2 || !pSet.has(rel.p1) || !pSet.has(rel.p2)) continue;
+    const k = pairKey(rel.p1, rel.p2);
+    if (rel.type === "ng") ngSet.add(k); else if (rel.type === "wish") wishSet.add(k);
+  }
+  ngSet.forEach(k => wishSet.delete(k));
+  return { ngSet, wishSet };
+}
+
+function evalCourtRelationCost(pa, pb, ngSet, wishSet, isRating) {
+  let cost = 0;
+  const all4 = [pa[0], pa[1], pb[0], pb[1]], wishBonus = isRating ? -1100 : -600;
+  for (let i = 0; i < 4; i++) for (let j = i + 1; j < 4; j++) {
+    const k = pairKey(all4[i], all4[j]);
+    if (ngSet.has(k)) cost += 15000; else if (wishSet.has(k)) cost += wishBonus;
+  }
+  return cost;
+}
+
+function generateOptimizedSchedule(players, courts, numRounds, options) {
+  const {
+    fixedPairsInput = [], relationsInput = [], protagonists = [], reservedMatches = [],
+    mode = "random", teamSubMode = "random", teams = { red: [], white: [] }, currentRatingsMap = {}
+  } = options || {};
+
+  const numCourts = courts.length, isTeam = (mode === "team");
+  const isRating = (mode === "rating") || (isTeam && teamSubMode === "rating");
+  const getR = (p) => (currentRatingsMap[p] !== undefined) ? currentRatingsMap[p] : DEFAULT_RATING;
+
+  if (isTeam) {
+    const need = numCourts * 2;
+    if (teams.red.length < need || teams.white.length < need) throw new Error(`紅白戦（${numCourts}面）には紅・白それぞれ最低 ${need}名必要です。`);
+  } else if (players.length < numCourts * 4) {
+    throw new Error(`参加者（${players.length}名）がコート枠（${numCourts * 4}名）より少ないため作成できません。`);
+  }
+
+  const reservedByRound = buildReservedMapByRound(reservedMatches, players, courts, numRounds, mode, teams);
+  const { ngSet, wishSet } = parseRelations(relationsInput, players, mode);
+
+  const parseFixed = (poolSet) => {
+    const list = [], usedAlways = new Set();
+    if (mode !== "number") {
+      for (const fp of fixedPairsInput) {
+        if (!fp.p1 || !fp.p2 || fp.p1 === fp.p2 || !poolSet.has(fp.p1) || !poolSet.has(fp.p2)) continue;
+        const count = Math.max(0, parseInt(fp.count, 10) || 0);
+        if (count === 0) { if (usedAlways.has(fp.p1) || usedAlways.has(fp.p2)) continue; usedAlways.add(fp.p1); usedAlways.add(fp.p2); }
+        list.push({ p1: fp.p1, p2: fp.p2, count, key: pairKey(fp.p1, fp.p2) });
+      }
+    }
+    return { always: list.filter(f => f.count === 0), limited: list.filter(f => f.count > 0) };
+  };
+
+  const redFixed = isTeam ? parseFixed(new Set(teams.red)) : null;
+  const whiteFixed = isTeam ? parseFixed(new Set(teams.white)) : null;
+  const allFixed = !isTeam ? parseFixed(new Set(players)) : null;
+  const alwaysKeySet = new Set(isTeam ? [...redFixed.always.map(f => f.key), ...whiteFixed.always.map(f => f.key)] : allFixed.always.map(f => f.key));
+  const allLimited = isTeam ? [...redFixed.limited, ...whiteFixed.limited] : allFixed.limited;
+
+  const TRIALS = players.length > 20 ? 24 : 40;
+  const INNER_TRIES = isRating ? (players.length > 20 ? 32 : 52) : (players.length > 20 ? 22 : 34);
+
+  const pickActiveFromPool = (pool, needActive, lockedSet, prevRest, restCnt, lastRestRound) => {
+    const restNeed = pool.length - needActive, activeSet = new Set(), restSet = new Set();
+    if (restNeed <= 0) pool.forEach(p => activeSet.add(p));
+    else {
+      const candidates = pool.filter(p => !lockedSet.has(p));
+      const sorted = [...candidates].sort((a, b) =>
+        ((prevRest.has(a) ? 100000 : 0) + restCnt[a] * 1000 + lastRestRound[a] * 10 + Math.random() * 2) -
+        ((prevRest.has(b) ? 100000 : 0) + restCnt[b] * 1000 + lastRestRound[b] * 10 + Math.random() * 2)
+      );
+      sorted.slice(0, restNeed).forEach(p => restSet.add(p));
+      pool.forEach(p => { if (!restSet.has(p)) activeSet.add(p); });
+    }
+    return { activeSet, restSet };
+  };
+
+  const makePairsFromList = (freeList, forcedPairs, pairCnt, prev1Pairs, prev2Pairs, it) => {
+    const pairs = [...forcedPairs], used = new Set();
+    const order = (isRating && it % 3 === 0) ? [...freeList].sort((a, b) => getR(b) - getR(a)) : shuffle(freeList);
+    for (let i = 0; i < order.length; i++) {
+      const u = order[i]; if (used.has(u)) continue;
+      let bestV = null, bestC = Infinity;
+      for (let j = i + 1; j < order.length; j++) {
+        const v = order[j]; if (used.has(v)) continue;
+        const pk = pairKey(u, v), cnt = pairCnt[pk] || 0;
+        const c = cnt * cnt * (isRating ? 65 : 100) + (prev1Pairs.has(pk) ? 180 : 0) + (prev2Pairs.has(pk) ? 85 : 0) +
+                  (ngSet.has(pk) ? 15000 : 0) + (wishSet.has(pk) ? -250 : 0) + Math.random() * (isRating ? 24 : 2.5);
+        if (c < bestC) { bestC = c; bestV = v; }
+      }
+      used.add(u); used.add(bestV); pairs.push([u, bestV]);
+    }
+    return pairs;
+  };
+
+  let bestSchedule = null, bestGlobalScore = Infinity;
+
+  for (let trial = 0; trial < TRIALS; trial++) {
+    const playCnt = Object.fromEntries(players.map(p => [p, 0]));
+    const restCnt = Object.fromEntries(players.map(p => [p, 0]));
+    const lastRestRound = Object.fromEntries(players.map(p => [p, -10]));
+    const pairCnt = {}, matchupCnt = {}, oppCnt = {};
+    const fixedDone = Object.fromEntries(allLimited.map(f => [f.key, 0]));
+    let prevRest = new Set(), prev1Pairs = new Set(), prev2Pairs = new Set(), prev1FourSets = new Set(), prev2FourSets = new Set();
+    let consecRestTotal = 0, consec1PairTotal = 0, consec2PairTotal = 0, consec4SetTotal = 0, totalRatingDiffSq = 0, maxRatingDiff = 0, ngViolations = 0, wishHits = 0;
+    const roundsOut = [];
+
+    for (let r = 1; r <= numRounds; r++) {
+      const reservedForR = reservedByRound[r] || [];
+      const reservedCourts = new Set(reservedForR.map(x => x.court));
+      const lockedSet = new Set(reservedForR.flatMap(x => [...x.p1, ...x.p2]));
+      const freeCourtsCount = numCourts - reservedForR.length;
+      let roundRestSet = new Set(), freeMatches = [];
+
+      const applyForced = (freeActiveSet, fx) => {
+        const forced = [], paired = new Set();
+        fx.always.forEach(fp => { if (freeActiveSet.has(fp.p1) && freeActiveSet.has(fp.p2)) { forced.push([fp.p1, fp.p2]); paired.add(fp.p1); paired.add(fp.p2); } });
+        const remR = numRounds - r + 1;
+        shuffle(fx.limited).sort((a, b) => (b.count - fixedDone[b.key]) - (a.count - fixedDone[a.key])).forEach(fp => {
+          const need = fp.count - fixedDone[fp.key];
+          if (need > 0 && freeActiveSet.has(fp.p1) && freeActiveSet.has(fp.p2) && !paired.has(fp.p1) && !paired.has(fp.p2)) {
+            if (!prev1Pairs.has(fp.key) || need >= remR) { forced.push([fp.p1, fp.p2]); paired.add(fp.p1); paired.add(fp.p2); fixedDone[fp.key]++; }
+          }
+        });
+        return { forced, freeList: Array.from(freeActiveSet).filter(p => !paired.has(p)) };
+      };
+
+      if (isTeam) {
+        const redPick = pickActiveFromPool(teams.red, numCourts * 2, lockedSet, prevRest, restCnt, lastRestRound);
+        const whitePick = pickActiveFromPool(teams.white, numCourts * 2, lockedSet, prevRest, restCnt, lastRestRound);
+        roundRestSet = new Set([...redPick.restSet, ...whitePick.restSet]);
+        if (freeCourtsCount > 0) {
+          const rF = applyForced(new Set([...redPick.activeSet].filter(p => !lockedSet.has(p))), redFixed);
+          const wF = applyForced(new Set([...whitePick.activeSet].filter(p => !lockedSet.has(p))), whiteFixed);
+          let bestRC = Infinity;
+          for (let it = 0; it < INNER_TRIES; it++) {
+            const rOrder = isRating ? [...makePairsFromList(rF.freeList, rF.forced, pairCnt, prev1Pairs, prev2Pairs, it)].sort((a, b) => (getR(b[0]) + getR(b[1])) - (getR(a[0]) + getR(a[1]))) : shuffle(makePairsFromList(rF.freeList, rF.forced, pairCnt, prev1Pairs, prev2Pairs, it));
+            const wOrder = isRating ? [...makePairsFromList(wF.freeList, wF.forced, pairCnt, prev1Pairs, prev2Pairs, it)].sort((a, b) => (getR(b[0]) + getR(b[1])) - (getR(a[0]) + getR(a[1]))) : shuffle(makePairsFromList(wF.freeList, wF.forced, pairCnt, prev1Pairs, prev2Pairs, it));
+            let cost = 0;
+            const usedW = new Set(), matches = [];
+            for (let i = 0; i < rOrder.length; i++) {
+              const pa = rOrder[i], sumA = getR(pa[0]) + getR(pa[1]);
+              let bestJ = -1, bestMC = Infinity;
+              for (let j = 0; j < wOrder.length; j++) {
+                if (usedW.has(j)) continue;
+                const pb = wOrder[j], sumB = getR(pb[0]) + getR(pb[1]), mk = matchupKey(pa, pb), fk = fourSetKey(pa, pb);
+                let oc = 0; for (const x of pa) for (const y of pb) { const v = oppCnt[pairKey(x, y)] || 0; oc += v * v; }
+                const rDiff = Math.abs(sumA - sumB);
+                const c = (isRating ? rDiff * rDiff * 1400 + rDiff * 300 : 0) + evalCourtRelationCost(pa, pb, ngSet, wishSet, isRating) +
+                          (prev1FourSets.has(fk) ? 650 : 0) + (prev2FourSets.has(fk) ? 320 : 0) + (matchupCnt[mk] || 0) * 450 + oc * 10 + Math.random() * 1.5;
+                if (c < bestMC) { bestMC = c; bestJ = j; }
+              }
+              usedW.add(bestJ); matches.push({ p1: pa, p2: wOrder[bestJ] }); cost += bestMC;
+            }
+            if (cost < bestRC) { bestRC = cost; freeMatches = matches; }
+          }
+        }
+      } else {
+        const pick = pickActiveFromPool(players, numCourts * 4, lockedSet, prevRest, restCnt, lastRestRound);
+        roundRestSet = pick.restSet;
+        if (freeCourtsCount > 0) {
+          const aF = applyForced(new Set([...pick.activeSet].filter(p => !lockedSet.has(p))), allFixed);
+          let bestRC = Infinity;
+          for (let it = 0; it < INNER_TRIES; it++) {
+            const curPairs = makePairsFromList(aF.freeList, aF.forced, pairCnt, prev1Pairs, prev2Pairs, it);
+            const pOrder = isRating ? [...curPairs].sort((a, b) => (getR(b[0]) + getR(b[1])) - (getR(a[0]) + getR(a[1]))) : shuffle(curPairs);
+            let cost = 0;
+            const usedIdx = new Set(), matches = [];
+            for (let i = 0; i < pOrder.length; i++) {
+              if (usedIdx.has(i)) continue;
+              const pa = pOrder[i], sumA = getR(pa[0]) + getR(pa[1]);
+              let bestJ = -1, bestMC = Infinity;
+              for (let j = i + 1; j < pOrder.length; j++) {
+                if (usedIdx.has(j)) continue;
+                const pb = pOrder[j], sumB = getR(pb[0]) + getR(pb[1]), mk = matchupKey(pa, pb), fk = fourSetKey(pa, pb);
+                let oc = 0; for (const x of pa) for (const y of pb) { const v = oppCnt[pairKey(x, y)] || 0; oc += v * v; }
+                const rDiff = Math.abs(sumA - sumB);
+                const c = (isRating ? rDiff * rDiff * 1400 + rDiff * 300 : 0) + evalCourtRelationCost(pa, pb, ngSet, wishSet, isRating) +
+                          (prev1FourSets.has(fk) ? 650 : 0) + (prev2FourSets.has(fk) ? 320 : 0) + (matchupCnt[mk] || 0) * 450 + oc * 10 + Math.random() * 1.5;
+                if (c < bestMC) { bestMC = c; bestJ = j; }
+              }
+              usedIdx.add(i); usedIdx.add(bestJ); matches.push({ p1: pa, p2: pOrder[bestJ] }); cost += bestMC;
+            }
+            if (cost < bestRC) { bestRC = cost; freeMatches = matches; }
+          }
+        }
+      }
+
+      roundRestSet.forEach(p => { restCnt[p]++; if (prevRest.has(p)) consecRestTotal++; lastRestRound[p] = r; });
+      players.forEach(p => { if (!roundRestSet.has(p)) playCnt[p]++; });
+      prevRest = roundRestSet;
+
+      const reservedByCourt = Object.fromEntries(reservedForR.map(x => [x.court, x]));
+      let fIdx = 0;
+      const mergedMatches = courts.map(courtName => reservedByCourt[courtName]
+        ? { court: courtName, p1: [...reservedByCourt[courtName].p1], p2: [...reservedByCourt[courtName].p2] }
+        : { court: courtName, p1: freeMatches[fIdx].p1, p2: freeMatches[fIdx++].p2 }
+      );
+      applyProtagonistCourtLock(mergedMatches, courts, protagonists, reservedCourts);
+
+      const curPairs = new Set(), curFour = new Set();
+      mergedMatches.forEach(m => {
+        const k1 = pairKey(m.p1[0], m.p1[1]), k2 = pairKey(m.p2[0], m.p2[1]), mk = matchupKey(m.p1, m.p2), fk = fourSetKey(m.p1, m.p2);
+        pairCnt[k1] = (pairCnt[k1] || 0) + 1; pairCnt[k2] = (pairCnt[k2] || 0) + 1; matchupCnt[mk] = (matchupCnt[mk] || 0) + 1;
+        for (const x of m.p1) for (const y of m.p2) { const ok = pairKey(x, y); oppCnt[ok] = (oppCnt[ok] || 0) + 1; }
+        const diff = Math.abs((getR(m.p1[0]) + getR(m.p1[1])) - (getR(m.p2[0]) + getR(m.p2[1])));
+        totalRatingDiffSq += diff * diff; if (diff > maxRatingDiff) maxRatingDiff = diff;
+        if (!alwaysKeySet.has(k1)) { if (prev1Pairs.has(k1)) consec1PairTotal++; if (prev2Pairs.has(k1)) consec2PairTotal++; }
+        if (!alwaysKeySet.has(k2)) { if (prev1Pairs.has(k2)) consec1PairTotal++; if (prev2Pairs.has(k2)) consec2PairTotal++; }
+        if (prev1FourSets.has(fk) || prev2FourSets.has(fk)) consec4SetTotal++;
+        const all4 = [m.p1[0], m.p1[1], m.p2[0], m.p2[1]];
+        for (let i = 0; i < 4; i++) for (let j = i + 1; j < 4; j++) { const rk = pairKey(all4[i], all4[j]); if (ngSet.has(rk)) ngViolations++; else if (wishSet.has(rk)) wishHits++; }
+        curPairs.add(k1); curPairs.add(k2); curFour.add(fk);
+      });
+      prev2Pairs = prev1Pairs; prev1Pairs = curPairs; prev2FourSets = prev1FourSets; prev1FourSets = curFour;
+      roundsOut.push({ r, matches: mergedMatches, rest: players.filter(p => roundRestSet.has(p)) });
+    }
+
+    const playSpread = isTeam
+      ? ((Math.max(...teams.red.map(p => playCnt[p])) - Math.min(...teams.red.map(p => playCnt[p]))) + (Math.max(...teams.white.map(p => playCnt[p])) - Math.min(...teams.white.map(p => playCnt[p]))))
+      : (Math.max(...Object.values(playCnt)) - Math.min(...Object.values(playCnt)));
+    let dupPairsExcess = 0; Object.entries(pairCnt).forEach(([k, v]) => { if (!alwaysKeySet.has(k) && v > 1) dupPairsExcess += (v - 1) * (v - 1); });
+    let dupMatchups = 0; Object.values(matchupCnt).forEach(v => { if (v > 1) dupMatchups += (v - 1); });
+    let fixedMiss = 0; allLimited.forEach(f => { if (fixedDone[f.key] < f.count) fixedMiss += (f.count - fixedDone[f.key]); });
+    const oppVals = Object.values(oppCnt), oppSpread = oppVals.length ? (Math.max(...oppVals) - Math.min(...oppVals)) : 0;
+    const globalScore = playSpread * 100000 + consecRestTotal * 80000 + fixedMiss * 60000 + ngViolations * 30000 +
+      (isRating ? totalRatingDiffSq * 1800 + maxRatingDiff * 2500 : 0) - wishHits * (isRating ? 900 : 500) +
+      dupMatchups * 3000 + consec4SetTotal * 900 + consec1PairTotal * 350 + consec2PairTotal * 140 + dupPairsExcess * 120 + oppSpread * 15;
+    if (globalScore < bestGlobalScore) { bestGlobalScore = globalScore; bestSchedule = roundsOut; }
+  }
+  return bestSchedule;
+}
+
+// ==========================================
+// APPEND +1 ROUND & MID-SESSION REGENERATE
+// ==========================================
+function buildNextRoundFromHistory(historyRounds, players, targetCourts, cfg, ratingsMap) {
+  const isTeam = (cfg.mode === "team");
+  const isRating = (cfg.mode === "rating") || (isTeam && cfg.teamSubMode === "rating");
+  const getR = (p) => ratingsMap[p] ?? DEFAULT_RATING;
+  const { ngSet, wishSet } = parseRelations(cfg.relations || [], players, cfg.mode);
+
+  const restCnt = Object.fromEntries(players.map(p => [p, 0]));
+  const lastRestRound = Object.fromEntries(players.map(p => [p, -10]));
+  const pairCnt = {}, matchupCnt = {}, oppCnt = {};
+  let prevRest = new Set(), prev1Pairs = new Set(), prev1FourSets = new Set();
+
+  historyRounds.forEach(item => {
+    const rSet = new Set(item.rest || []);
+    rSet.forEach(p => { if (restCnt[p] !== undefined) { restCnt[p]++; lastRestRound[p] = item.r; } });
+    prevRest = rSet;
+    const curP = new Set(), curF = new Set();
+    item.matches.forEach(m => {
+      const k1 = pairKey(m.p1[0], m.p1[1]), k2 = pairKey(m.p2[0], m.p2[1]), mk = matchupKey(m.p1, m.p2), fk = fourSetKey(m.p1, m.p2);
+      pairCnt[k1] = (pairCnt[k1] || 0) + 1; pairCnt[k2] = (pairCnt[k2] || 0) + 1; matchupCnt[mk] = (matchupCnt[mk] || 0) + 1;
+      for (const x of m.p1) for (const y of m.p2) { const ok = pairKey(x, y); oppCnt[ok] = (oppCnt[ok] || 0) + 1; }
+      curP.add(k1); curP.add(k2); curF.add(fk);
+    });
+    prev1Pairs = curP; prev1FourSets = curF;
+  });
+
+  const pickActive = (pool, activeNeed) => {
+    const restNeed = pool.length - activeNeed;
+    if (restNeed <= 0) return { active: [...pool], rest: [] };
+    const sorted = [...pool].sort((a, b) =>
+      ((prevRest.has(a) ? 100000 : 0) + restCnt[a] * 1000 + lastRestRound[a] * 10 + Math.random() * 2) -
+      ((prevRest.has(b) ? 100000 : 0) + restCnt[b] * 1000 + lastRestRound[b] * 10 + Math.random() * 2)
+    );
+    const rSet = new Set(sorted.slice(0, restNeed));
+    return { active: pool.filter(p => !rSet.has(p)), rest: pool.filter(p => rSet.has(p)) };
+  };
+  const makePairs = (pool, it) => {
+    const pairs = [], used = new Set();
+    const order = (isRating && it % 3 === 0) ? [...pool].sort((a, b) => getR(b) - getR(a)) : shuffle(pool);
+    for (let i = 0; i < order.length; i++) {
+      const u = order[i]; if (used.has(u)) continue;
+      let bestV = null, bestC = Infinity;
+      for (let j = i + 1; j < order.length; j++) {
+        const v = order[j]; if (used.has(v)) continue;
+        const pk = pairKey(u, v);
+        const c = (pairCnt[pk] || 0) ** 2 * 90 + (prev1Pairs.has(pk) ? 180 : 0) + (ngSet.has(pk) ? 15000 : 0) + (wishSet.has(pk) ? -250 : 0) + Math.random() * 10;
+        if (c < bestC) { bestC = c; bestV = v; }
+      }
+      used.add(u); used.add(bestV); pairs.push([u, bestV]);
+    }
+    return pairs;
+  };
+
+  let bestMatches = null, bestCost = Infinity, roundRest = [];
+  if (isTeam) {
+    const rPool = (cfg.teams?.red || []).filter(p => players.includes(p));
+    const wPool = (cfg.teams?.white || []).filter(p => players.includes(p));
+    const rPick = pickActive(rPool, targetCourts.length * 2), wPick = pickActive(wPool, targetCourts.length * 2);
+    roundRest = [...rPick.rest, ...wPick.rest];
+    for (let it = 0; it < 50; it++) {
+      const rP = makePairs(rPick.active, it), wP = makePairs(wPick.active, it), usedW = new Set(), matches = [];
+      let cost = 0;
+      for (let i = 0; i < rP.length; i++) {
+        const pa = rP[i], sumA = getR(pa[0]) + getR(pa[1]);
+        let bestJ = -1, bestMC = Infinity;
+        for (let j = 0; j < wP.length; j++) {
+          if (usedW.has(j)) continue;
+          const pb = wP[j], sumB = getR(pb[0]) + getR(pb[1]), mk = matchupKey(pa, pb), fk = fourSetKey(pa, pb);
+          const c = (isRating ? Math.abs(sumA - sumB) ** 2 * 1400 : 0) + evalCourtRelationCost(pa, pb, ngSet, wishSet, isRating) + (prev1FourSets.has(fk) ? 650 : 0) + (matchupCnt[mk] || 0) * 450 + Math.random() * 2;
+          if (c < bestMC) { bestMC = c; bestJ = j; }
+        }
+        usedW.add(bestJ); matches.push({ p1: pa, p2: wP[bestJ] }); cost += bestMC;
+      }
+      if (cost < bestCost) { bestCost = cost; bestMatches = matches; }
+    }
+  } else {
+    const pick = pickActive(players, targetCourts.length * 4);
+    roundRest = pick.rest;
+    for (let it = 0; it < 50; it++) {
+      const pairs = makePairs(pick.active, it), usedIdx = new Set(), matches = [];
+      let cost = 0;
+      for (let i = 0; i < pairs.length; i++) {
+        if (usedIdx.has(i)) continue;
+        const pa = pairs[i], sumA = getR(pa[0]) + getR(pa[1]);
+        let bestJ = -1, bestMC = Infinity;
+        for (let j = i + 1; j < pairs.length; j++) {
+          if (usedIdx.has(j)) continue;
+          const pb = pairs[j], sumB = getR(pb[0]) + getR(pb[1]), mk = matchupKey(pa, pb), fk = fourSetKey(pa, pb);
+          const c = (isRating ? Math.abs(sumA - sumB) ** 2 * 1400 : 0) + evalCourtRelationCost(pa, pb, ngSet, wishSet, isRating) + (prev1FourSets.has(fk) ? 650 : 0) + (matchupCnt[mk] || 0) * 450 + Math.random() * 2;
+          if (c < bestMC) { bestMC = c; bestJ = j; }
+        }
+        usedIdx.add(i); usedIdx.add(bestJ); matches.push({ p1: pa, p2: pairs[bestJ] }); cost += bestMC;
+      }
+      if (cost < bestCost) { bestCost = cost; bestMatches = matches; }
+    }
+  }
+  const formatted = bestMatches.map((m, idx) => ({ court: targetCourts[idx], p1: m.p1, p2: m.p2 }));
+  if (targetCourts.length === (cfg.courts || []).length) applyProtagonistCourtLock(formatted, targetCourts, cfg.protagonists);
+  return { matches: formatted, rest: roundRest };
+}
+
+function appendOneRound(singleCourtName = null) {
+  const sess = cur(), cfg = sess.config;
+  const targetCourts = singleCourtName ? [singleCourtName] : (cfg.courts || []);
+  const nextR = sess.schedule.length + 1;
+  if (nextR > 40) { alert("最大40ラウンドまで追加できます。"); return; }
+  refreshRatingsCache();
+  const built = buildNextRoundFromHistory(sess.schedule, cfg.players || [], targetCourts, cfg, cachedRatings.ratings);
+  sess.schedule.push({ r: nextR, matches: built.matches, rest: built.rest });
+  sess.config.rounds = sess.schedule.length;
+  saveState(); updateUIKeepScroll();
+  showToast(singleCourtName ? `第${nextR}R（${singleCourtName}のみ）を追加しました！` : `第${nextR}ラウンドを追加しました！`);
+  const el = document.getElementById(`round-${nextR}`);
+  if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function regenerateRemainingRounds(startR, newActivePlayers) {
+  const sess = cur(), cfg = sess.config, courts = cfg.courts || [];
+  const isTeam = isCurTeamMode();
+  if (isTeam) {
+    // 途中参加者を人数少ない組へ自動補完
+    const red = (cfg.teams.red || []).filter(p => newActivePlayers.includes(p));
+    const white = (cfg.teams.white || []).filter(p => newActivePlayers.includes(p));
+    const set = new Set([...red, ...white]);
+    newActivePlayers.forEach(p => { if (!set.has(p)) { if (red.length <= white.length) red.push(p); else white.push(p); } });
+    if (red.length < courts.length * 2 || white.length < courts.length * 2) {
+      alert(`紅白戦（${courts.length}面）には紅・白それぞれ最低 ${courts.length * 2}名必要です。`);
+      return false;
+    }
+    cfg.teams = { red, white };
+  } else if (newActivePlayers.length < courts.length * 4) {
+    alert(`参加者（${newActivePlayers.length}名）がコート枠（${courts.length * 4}名）より少ないため再生成できません。`);
+    return false;
+  }
+
+  refreshRatingsCache();
+  const keptRounds = sess.schedule.filter(item => item.r < startR);
+  const totalRounds = sess.schedule.length;
+  const working = deepClone(keptRounds);
+
+  for (let r = startR; r <= totalRounds; r++) {
+    const built = buildNextRoundFromHistory(working, newActivePlayers, courts, cfg, cachedRatings.ratings);
+    working.push({ r, matches: built.matches, rest: built.rest });
+    // 再生成対象ラウンドの古いスコアはクリア
+    courts.forEach((_, idx) => { delete sess.scores[matchId(r, idx)]; });
+  }
+
+  // セッションのプレイヤー一覧に途中参加者も含める（戦績集計漏れ防止）
+  const mergedPlayers = Array.from(new Set([...(cfg.players || []), ...newActivePlayers]));
+  cfg.players = mergedPlayers;
+  sess.schedule = working;
+  saveState();
+  renderAll();
+  showToast(`第${startR}ラウンド以降を ${newActivePlayers.length}名で再生成しました！`);
+  return true;
+}
+
+// ==========================================
+// PRIVACY TOGGLE & MAIN RENDER
+// ==========================================
+function applyPrivacyUI() {
+  document.body.classList.toggle("hide-ratings", !!appState.hideRatings);
+  const btn = document.getElementById("btnTogglePrivacy");
+  btn.textContent = appState.hideRatings ? "レート非表示中" : "レート表示";
+  btn.classList.toggle("hidden-on", !!appState.hideRatings);
+}
+document.getElementById("btnTogglePrivacy").onclick = () => {
+  appState.hideRatings = !appState.hideRatings;
+  saveState(); applyPrivacyUI(); renderStats(); renderExportPreview(); renderTeamSetupUI();
+  showToast(appState.hideRatings ? "レート数値を非表示にしました" : "レート数値を表示しました");
+};
+
+function renderAll() {
+  refreshRatingsCache();
+  applyPrivacyUI();
+  const mTag = isCurNumberMode() ? " [番号のみ]" : (isCurTeamMode() ? " [紅白戦]" : "");
+  document.getElementById("headerTitle").textContent = `${cur().config.title}${mTag}（${cur().date}）`;
+  document.getElementById("chkChallengeEffect").checked = !!appState.showChallenge;
+  document.getElementById("chkReportIncludeMatches").checked = !!appState.reportIncludeMatches;
+  renderScoreToolbar();
+  renderJumpBar();
+  renderRounds();
+  renderAppendControls();
+  updateProgress();
+  renderSetupForm();
+  renderVerifySummary();
+  renderStats();
+  renderHistoryTab();
+  renderFeeCalculator();
+  renderExportPreview();
+}
+
+function renderScoreToolbar() {
+  const isNum = isCurNumberMode();
+  document.getElementById("numberModeBanner").style.display = isNum ? "block" : "none";
+  document.getElementById("scoreToolbar").style.display = isNum ? "none" : "flex";
+  const pts = getCurMatchPts();
+  document.querySelectorAll("[data-matchpts]").forEach(btn => {
+    btn.classList.toggle("active", Number(btn.dataset.matchpts) === pts);
+  });
+}
+document.querySelectorAll("[data-matchpts]").forEach(btn => {
+  btn.onclick = () => {
+    cur().config.matchPoints = Number(btn.dataset.matchpts);
+    selectedSetupPts = cur().config.matchPoints;
+    saveState(); refreshRatingsCache(); renderScoreToolbar(); renderRounds();
+    updateSetupPtsUI(); renderStats(); renderExportPreview();
+    showToast(`${selectedSetupPts}点マッチに切り替えました`);
+  };
+});
+document.getElementById("btnQuickJumpImage").onclick = () => {
+  document.querySelector('.tab-btn[data-tab="export"]').click();
+};
+
+function renderAppendControls() {
+  const courts = cur().config.courts || [];
+  const row = document.getElementById("appendSingleRow");
+  const sel = document.getElementById("selAppendCourt");
+  if (courts.length <= 1) row.style.display = "none";
+  else {
+    row.style.display = "grid";
+    const prev = sel.value;
+    sel.innerHTML = courts.map(c => `<option value="${c}" ${c === prev ? "selected" : ""}>${c}</option>`).join("");
+  }
+}
+document.getElementById("btnAppendFullRound").onclick = () => appendOneRound(null);
+document.getElementById("btnAppendSingleCourt").onclick = () => {
+  const c = document.getElementById("selAppendCourt").value;
+  if (c) appendOneRound(c);
+};
+document.getElementById("btnCleanupUnplayed").onclick = cleanupUnplayedRounds;
+
+function renderJumpBar() {
+  const bar = document.getElementById("jumpBar");
+  bar.innerHTML = "";
+  const isNum = isCurNumberMode();
+  cur().schedule.forEach(item => {
+    let cls = "jump-btn";
+    const totalM = item.matches.length;
+    if (!isNum && totalM > 0) {
+      let done = 0;
+      item.matches.forEach((_, idx) => { if (isMatchValidOf(cur(), matchId(item.r, idx))) done++; });
+      if (done === totalM) cls += " done";
+      else if (done > 0) cls += " partial";
+    }
+    const btn = document.createElement("button");
+    btn.className = cls;
+    btn.textContent = `R${item.r}`;
+    btn.onclick = () => {
+      const el = document.getElementById(`round-${item.r}`);
+      if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+    };
+    bar.appendChild(btn);
+  });
+}
+
+function renderRounds() {
+  const container = document.getElementById("roundsContainer");
+  container.innerHTML = "";
+  const isNum = isCurNumberMode();
+  cur().schedule.forEach(item => {
+    const totalM = item.matches.length;
+    let done = 0;
+    if (!isNum) item.matches.forEach((_, idx) => { if (isMatchValidOf(cur(), matchId(item.r, idx))) done++; });
+    const sec = document.createElement("div");
+    sec.className = "round-section"; sec.id = `round-${item.r}`;
+    const restHtml = item.rest && item.rest.length ? `<span class="round-rest-badge">休憩: ${item.rest.join("・")}</span>` : "";
+    const statusHtml = isNum
+      ? `<div class="round-status">${getCurMatchPts()}点マッチ</div>`
+      : `<div class="round-status ${done === totalM && totalM > 0 ? 'done' : ''}">${done === totalM && totalM > 0 ? `完了 (${done}/${totalM})` : `入力 (${done}/${totalM})`}</div>`;
+    sec.innerHTML = `
+      <div class="round-header">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;"><div class="round-title">第${item.r}ラウンド</div>${restHtml}</div>
+        ${statusHtml}
+      </div>`;
+    item.matches.forEach((m, idx) => {
+      sec.appendChild(isNum ? createNumberMatchCard(item.r, idx, m) : createMatchCard(item.r, idx, m));
+    });
+    container.appendChild(sec);
+  });
+}
+
+function createNumberMatchCard(r, cIdx, m) {
+  const card = document.createElement("div");
+  card.className = "match-card";
+  card.innerHTML = `
+    <div class="match-top" style="margin-bottom:7px;">
+      <span class="court-badge ${cIdx % 2 === 1 ? 'alt' : ''}">${m.court}</span>
+      <button class="edit-match-btn" data-edit="${r}_${cIdx}">編集</button>
+    </div>
+    <div class="number-match-line"><span>${m.p1[0]}・${m.p1[1]}</span><span class="vs-lbl">vs</span><span>${m.p2[0]}・${m.p2[1]}</span></div>`;
+  card.querySelector(`[data-edit="${r}_${cIdx}"]`).onclick = () => openEditMatchModal(r, cIdx);
+  return card;
+}
+
+function createMatchCard(r, cIdx, m) {
+  const id = matchId(r, cIdx), sc = getScoreOf(cur(), id), valid = isMatchValidOf(cur(), id);
+  const n1 = Number(sc.s1), n2 = Number(sc.s2), w1 = valid && n1 > n2, w2 = valid && n2 > n1;
+  const pts = getCurMatchPts(), isTeam = isCurTeamMode();
+  const r1 = (cachedRatings.ratings[m.p1[0]] ?? DEFAULT_RATING) + (cachedRatings.ratings[m.p1[1]] ?? DEFAULT_RATING);
+  const r2 = (cachedRatings.ratings[m.p2[0]] ?? DEFAULT_RATING) + (cachedRatings.ratings[m.p2[1]] ?? DEFAULT_RATING);
+  const ch = appState.showChallenge ? getChallengeInfo(m.p1, m.p2) : null;
+  const chHtml = (s) => (ch && ch.side === s) ? `<span class="challenger-tag lv${ch.level}">${ch.label} ${ch.stars}</span>` : "";
+  const tag1 = isTeam ? '<span class="team-tag red">紅組</span>' : '';
+  const tag2 = isTeam ? '<span class="team-tag white">白組</span>' : '';
+
+  const card = document.createElement("div");
+  card.className = "match-card" + (valid ? " completed" : "");
+  card.innerHTML = `
+    <div class="match-top">
+      <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+        <span class="court-badge ${cIdx % 2 === 1 ? 'alt' : ''}">${m.court}</span>
+        <span class="rate-diff-badge rating-only">R合計 ${r1.toFixed(1)} vs ${r2.toFixed(1)}（差${Math.abs(r1 - r2).toFixed(2)}）</span>
+      </div>
+      <div class="match-actions">
+        <button class="edit-match-btn" data-edit="${r}_${cIdx}">編集</button>
+        <button class="clear-btn" data-clear="${id}">クリア</button>
+      </div>
+    </div>
+    <div class="team-row ${w1 ? 'winner' : ''}">
+      <div class="team-name">${tag1}${m.p1[0]}・${m.p1[1]}${chHtml(1)}${w1 ? '<span class="win-tag">WIN</span>' : ''}</div>
+      <div class="score-controls">
+        <button class="btn-quick" data-setpts="${id}" data-side="s1">${pts}</button>
+        <button class="btn-step" data-step="${id}" data-side="s1" data-delta="-1">−</button>
+        <input class="score-input" type="number" inputmode="numeric" min="0" max="99" value="${sc.s1}" data-input="${id}" data-side="s1" placeholder="-">
+        <button class="btn-step" data-step="${id}" data-side="s1" data-delta="1">＋</button>
+      </div>
+    </div>
+    <div class="team-row ${w2 ? 'winner' : ''}">
+      <div class="team-name">${tag2}${m.p2[0]}・${m.p2[1]}${chHtml(2)}${w2 ? '<span class="win-tag">WIN</span>' : ''}</div>
+      <div class="score-controls">
+        <button class="btn-quick" data-setpts="${id}" data-side="s2">${pts}</button>
+        <button class="btn-step" data-step="${id}" data-side="s2" data-delta="-1">−</button>
+        <input class="score-input" type="number" inputmode="numeric" min="0" max="99" value="${sc.s2}" data-input="${id}" data-side="s2" placeholder="-">
+        <button class="btn-step" data-step="${id}" data-side="s2" data-delta="1">＋</button>
+      </div>
+    </div>`;
+
+  card.querySelector(`[data-edit="${r}_${cIdx}"]`).onclick = () => openEditMatchModal(r, cIdx);
+  card.querySelector(`[data-clear="${id}"]`).onclick = () => { delete cur().scores[id]; saveState(); updateUIKeepScroll(); };
+  card.querySelectorAll("[data-setpts]").forEach(btn => {
+    btn.onclick = () => { if (!cur().scores[id]) cur().scores[id] = { s1: "", s2: "" }; cur().scores[id][btn.dataset.side] = String(getCurMatchPts()); saveState(); updateUIKeepScroll(); };
+  });
+  card.querySelectorAll("[data-step]").forEach(btn => {
+    btn.onclick = () => {
+      const side = btn.dataset.side;
+      if (!cur().scores[id]) cur().scores[id] = { s1: "", s2: "" };
+      const cVal = cur().scores[id][side] === "" ? 0 : Number(cur().scores[id][side]);
+      cur().scores[id][side] = String(Math.max(0, Math.min(99, cVal + Number(btn.dataset.delta))));
+      saveState(); updateUIKeepScroll();
+    };
+  });
+  card.querySelectorAll("[data-input]").forEach(inp => {
+    inp.onchange = () => {
+      if (!cur().scores[id]) cur().scores[id] = { s1: "", s2: "" };
+      const v = inp.value.trim();
+      cur().scores[id][inp.dataset.side] = v === "" ? "" : String(Math.max(0, Math.min(99, parseInt(v, 10) || 0)));
+      saveState(); updateUIKeepScroll();
+    };
+  });
+  return card;
+}
+
+function updateUIKeepScroll() {
+  const y = window.scrollY;
+  refreshRatingsCache();
+  renderJumpBar(); renderRounds(); renderAppendControls(); updateProgress();
+  renderMasterAndAttendees(); renderVerifySummary(); renderStats();
+  renderHistoryTab(); renderExportPreview();
+  window.scrollTo(0, y);
+}
+
+function updateProgress() {
+  const badge = document.getElementById("progressBadge");
+  if (isCurNumberMode()) badge.textContent = `番号 ${cur().config.players.length}名`;
+  else { const { done, total } = countValidMatches(cur()); badge.textContent = `${done} / ${total}`; }
+}
+
+// ==========================================
+// MANUAL MATCH EDIT MODAL & REGEN MODAL
+// ==========================================
+let editingMatchTarget = null;
+function getOtherCourtPlayerMap(roundObj, excludeCIdx) {
+  const map = {};
+  roundObj.matches.forEach((m, idx) => {
+    if (idx === excludeCIdx) return;
+    m.p1.forEach((p, s) => { map[p] = { cIdx: idx, court: m.court, side: "p1", slot: s }; });
+    m.p2.forEach((p, s) => { map[p] = { cIdx: idx, court: m.court, side: "p2", slot: s }; });
+  });
+  return map;
+}
+function openEditMatchModal(r, cIdx) {
+  const roundObj = cur().schedule.find(item => item.r === r);
+  if (!roundObj || !roundObj.matches[cIdx]) return;
+  const m = roundObj.matches[cIdx];
+  editingMatchTarget = { r, cIdx };
+  const isTeam = isCurTeamMode(), isNum = isCurNumberMode();
+  const otherMap = getOtherCourtPlayerMap(roundObj, cIdx), restSet = new Set(roundObj.rest || []);
+
+  document.getElementById("editModalTitle").textContent = `第${r}ラウンド・${m.court} の編集`;
+  document.getElementById("editModalSub").textContent = isMatchValidOf(cur(), matchId(r, cIdx))
+    ? "※スコア入力済みです。変更すると新しいメンバーで戦績・レートを再計算します。"
+    : "変更すると、このラウンドの休憩者リストも自動更新されます。";
+  document.getElementById("editBoxP1").className = "edit-team-box" + (isTeam ? " red" : "");
+  document.getElementById("editBoxP2").className = "edit-team-box" + (isTeam ? " white" : "");
+  document.getElementById("editLblP1").textContent = isTeam ? "ペア1（紅組メンバーのみ）" : "ペア1";
+  document.getElementById("editLblP2").textContent = isTeam ? "ペア2（白組メンバーのみ）" : "ペア2";
+
+  const poolP1 = isTeam ? [...(cur().config.teams?.red || [])] : [...cur().config.players];
+  const poolP2 = isTeam ? [...(cur().config.teams?.white || [])] : [...cur().config.players];
+  m.p1.forEach(p => { if (!poolP1.includes(p)) poolP1.push(p); });
+  m.p2.forEach(p => { if (!poolP2.includes(p)) poolP2.push(p); });
+
+  const buildOpts = (pool, sel) => pool.map(p => {
+    const disp = isNum ? `${p}番` : p;
+    const st = restSet.has(p) ? "（休憩中）" : (otherMap[p] ? `（${otherMap[p].court}出場中）` : "");
+    return `<option value="${p}" ${p === sel ? "selected" : ""}>${disp}${st}</option>`;
+  }).join("");
+
+  document.getElementById("editSelP1A").innerHTML = buildOpts(poolP1, m.p1[0]);
+  document.getElementById("editSelP1B").innerHTML = buildOpts(poolP1, m.p1[1]);
+  document.getElementById("editSelP2A").innerHTML = buildOpts(poolP2, m.p2[0]);
+  document.getElementById("editSelP2B").innerHTML = buildOpts(poolP2, m.p2[1]);
+  validateEditMatchSelection();
+  document.getElementById("editMatchModal").classList.add("open");
+}
+
+function validateEditMatchSelection() {
+  if (!editingMatchTarget) return { ok: false };
+  const { r, cIdx } = editingMatchTarget, roundObj = cur().schedule.find(item => item.r === r);
+  const otherMap = getOtherCourtPlayerMap(roundObj, cIdx);
+  const vals = ["editSelP1A", "editSelP1B", "editSelP2A", "editSelP2B"].map(id => document.getElementById(id).value);
+  const warnEl = document.getElementById("editMatchWarn"), saveBtn = document.getElementById("btnSaveEditMatch");
+  if (new Set(vals).size < 4) {
+    warnEl.textContent = "⚠ 同じ選手が重複しています。別の選手を選んでください。";
+    warnEl.className = "edit-warn-box error"; warnEl.style.display = "block";
+    saveBtn.disabled = true; saveBtn.style.opacity = "0.5"; return { ok: false };
+  }
+  const conflicts = vals.filter(p => otherMap[p]);
+  saveBtn.disabled = false; saveBtn.style.opacity = "1";
+  if (conflicts.length > 0) {
+    warnEl.textContent = `🔄 ${conflicts.map(p => `${p}（${otherMap[p].court}）`).join("・")} は別コート出場中です。保存時に自動で入れ替え（スワップ）します。`;
+    warnEl.className = "edit-warn-box"; warnEl.style.display = "block";
+    return { ok: true, conflicts };
+  }
+  warnEl.style.display = "none"; return { ok: true, conflicts: [] };
+}
+
+function commitEditMatch() {
+  const check = validateEditMatchSelection();
+  if (!check.ok || !editingMatchTarget) return;
+  const { r, cIdx } = editingMatchTarget, roundObj = cur().schedule.find(item => item.r === r), m = roundObj.matches[cIdx];
+  const isTeam = isCurTeamMode(), oldP1 = [...m.p1], oldP2 = [...m.p2];
+  const newP1 = [document.getElementById("editSelP1A").value, document.getElementById("editSelP1B").value];
+  const newP2 = [document.getElementById("editSelP2A").value, document.getElementById("editSelP2B").value];
+  const newSet = new Set([...newP1, ...newP2]), otherMap = getOtherCourtPlayerMap(roundObj, cIdx);
+  const remP1 = oldP1.filter(p => !newSet.has(p)), remP2 = oldP2.filter(p => !newSet.has(p)), remAll = [...remP1, ...remP2];
+  const doSwap = (inc, pool) => inc.forEach(p => {
+    const info = otherMap[p]; if (!info) return;
+    const rep = isTeam ? pool.shift() : remAll.shift();
+    if (rep) roundObj.matches[info.cIdx][info.side][info.slot] = rep;
+  });
+  doSwap(newP1, remP1); doSwap(newP2, remP2);
+  m.p1 = newP1; m.p2 = newP2;
+  const activeSet = new Set();
+  roundObj.matches.forEach(mt => { mt.p1.forEach(p => activeSet.add(p)); mt.p2.forEach(p => activeSet.add(p)); });
+  roundObj.rest = cur().config.players.filter(p => !activeSet.has(p));
+  closeEditMatchModal(); saveState(); updateUIKeepScroll();
+  showToast(`第${r}ラウンド・${m.court} のメンバーを変更しました`);
+}
+function closeEditMatchModal() { editingMatchTarget = null; document.getElementById("editMatchModal").classList.remove("open"); }
+["editSelP1A", "editSelP1B", "editSelP2A", "editSelP2B"].forEach(id => document.getElementById(id).addEventListener("change", validateEditMatchSelection));
+document.getElementById("btnCancelEditMatch").onclick = closeEditMatchModal;
+document.getElementById("btnSaveEditMatch").onclick = commitEditMatch;
+document.getElementById("editMatchModal").addEventListener("click", (e) => { if (e.target.id === "editMatchModal") closeEditMatchModal(); });
+
+// NEW V9: Mid-Session Regenerate Modal
+let regenSelectedSet = new Set();
+function openRegenModal() {
+  if (isCurNumberMode()) { showToast("番号のみモードでは使用できません"); return; }
+  const sess = cur(), totalR = sess.schedule.length;
+  // デフォルト開始R＝最初の未入力ラウンド
+  let defaultStart = totalR;
+  for (const item of sess.schedule) {
+    const hasScore = item.matches.some((_, idx) => isMatchValidOf(sess, matchId(item.r, idx)));
+    if (!hasScore) { defaultStart = item.r; break; }
+  }
+  const sel = document.getElementById("selRegenStartRound");
+  sel.innerHTML = sess.schedule.map(it => `<option value="${it.r}" ${it.r === defaultStart ? "selected" : ""}>第${it.r}ラウンド以降（残り ${totalR - it.r + 1}R）</option>`).join("");
+
+  regenSelectedSet = new Set(sess.config.players || []);
+  renderRegenPlayerGrid();
+  document.getElementById("regenModal").classList.add("open");
+}
+function renderRegenPlayerGrid() {
+  const allPool = Array.from(new Set([...(cur().config.players || []), ...appState.memberMaster]));
+  const grid = document.getElementById("regenPlayerGrid");
+  grid.innerHTML = "";
+  allPool.forEach(p => {
+    const active = regenSelectedSet.has(p);
+    const chip = document.createElement("div");
+    chip.className = "regen-chip" + (active ? " active" : "");
+    chip.innerHTML = `<span>${p}</span><span>${active ? "✓" : "＋"}</span>`;
+    chip.onclick = () => {
+      if (regenSelectedSet.has(p)) regenSelectedSet.delete(p);
+      else regenSelectedSet.add(p);
+      renderRegenPlayerGrid();
+    };
+    grid.appendChild(chip);
+  });
+  const need = (cur().config.courts || []).length * 4;
+  document.getElementById("regenHint").innerHTML = regenSelectedSet.size < need
+    ? `<span style="color:#fca5a5;">現在 ${regenSelectedSet.size}名選択中（最低 ${need}名必要です）</span>`
+    : `選択中：${regenSelectedSet.size}名（途中参加・早退を反映して再最適化します）`;
+}
+document.getElementById("btnOpenRegenModal").onclick = openRegenModal;
+document.getElementById("btnCancelRegen").onclick = () => document.getElementById("regenModal").classList.remove("open");
+document.getElementById("regenModal").addEventListener("click", (e) => { if (e.target.id === "regenModal") document.getElementById("regenModal").classList.remove("open"); });
+document.getElementById("btnExecRegen").onclick = () => {
+  const startR = parseInt(document.getElementById("selRegenStartRound").value, 10) || 1;
+  if (regenerateRemainingRounds(startR, Array.from(regenSelectedSet))) {
+    document.getElementById("regenModal").classList.remove("open");
+  }
+};
+
+// ==========================================
+// SETUP FORM, AFFILIATION FILTER, TEAM UI, OPTIONS
+// ==========================================
+function parseCourtsText(txt) {
+  const raw = txt.split(/[、,\n\r]+/).map(s => s.trim()).filter(Boolean);
+  return raw.length ? raw : ["10番コート", "11番コート"];
+}
+
+function renderSetupForm() {
+  document.getElementById("inpDate").value = cur().date || todayStr();
+  document.getElementById("inpTitle").value = cur().config.title;
+  document.getElementById("inpRounds").value = cur().config.rounds;
+  document.getElementById("inpCourts").value = cur().config.courts.join(", ");
+  if (isCurNumberMode()) document.getElementById("inpNumberPlayers").value = cur().config.players.length;
+
+  draftFixedPairs = deepClone(cur().config.fixedPairs || []);
+  draftRelations = deepClone(cur().config.relations || []);
+  draftProtagonists = deepClone(cur().config.protagonists || []);
+  draftReservedMatches = deepClone(cur().config.reservedMatches || []);
+  selectedGenMode = cur().config.mode || "random";
+  selectedTeamSubMode = cur().config.teamSubMode || "random";
+  selectedSetupPts = getCurMatchPts();
+
+  updateSetupPtsUI(); updateTeamSubUI(); updateGenModeUI();
+  renderMasterAndAttendees(); renderAllOptionLists(); updateNumberCountHint();
+}
+
+function renderAllOptionLists() {
+  renderTeamSetupUI(); renderFixedPairsUI(); renderRelationsUI(); renderProtagonistsUI(); renderReservedMatchesUI();
+}
+function updateSetupPtsUI() { document.querySelectorAll("[data-setuppts]").forEach(b => b.classList.toggle("active", Number(b.dataset.setuppts) === selectedSetupPts)); }
+document.querySelectorAll("[data-setuppts]").forEach(b => { b.onclick = () => { selectedSetupPts = Number(b.dataset.setuppts); updateSetupPtsUI(); }; });
+function updateTeamSubUI() { document.querySelectorAll("[data-teamsub]").forEach(b => b.classList.toggle("active", b.dataset.teamsub === selectedTeamSubMode)); }
+document.querySelectorAll("[data-teamsub]").forEach(b => { b.onclick = () => { selectedTeamSubMode = b.dataset.teamsub; updateTeamSubUI(); }; });
+
+function updateNumberCountHint() {
+  const n = Math.max(4, Math.min(40, parseInt(document.getElementById("inpNumberPlayers").value, 10) || 8));
+  const cs = parseCourtsText(document.getElementById("inpCourts").value), need = cs.length * 4;
+  document.getElementById("numberCountHint").innerHTML = n < need
+    ? `<span style="color:#fca5a5;">${cs.length}面には最低 ${need}名必要です</span>` : `1〜${n}番で作成（出場 ${need}名・休憩 ${n - need}名）`;
+}
+document.getElementById("inpNumberPlayers").addEventListener("input", updateNumberCountHint);
+
+function updateGenModeUI() {
+  document.querySelectorAll("[data-genmode]").forEach(b => b.classList.toggle("active", b.dataset.genmode === selectedGenMode));
+  const desc = document.getElementById("genModeDesc"), genBtn = document.getElementById("btnGenerate");
+  document.getElementById("numberModeSetupBox").style.display = selectedGenMode === "number" ? "block" : "none";
+  document.getElementById("namedModeSections").style.display = selectedGenMode === "number" ? "none" : "block";
+  document.getElementById("teamModeSetupCard").style.display = selectedGenMode === "team" ? "block" : "none";
+  if (selectedGenMode === "rating") { desc.textContent = "各コートのペア現在レート合計差が最小になるよう最適化します。"; genBtn.className = "action-btn btn-purple"; genBtn.textContent = "実力拮抗（レート）モードで対戦表を作成する"; }
+  else if (selectedGenMode === "team") { desc.textContent = "参加者を紅組・白組に分けてチーム対抗戦を行います。"; genBtn.className = "action-btn btn-red"; genBtn.textContent = "紅白戦モードで対戦表を作成する"; renderTeamSetupUI(); }
+  else if (selectedGenMode === "number") { desc.textContent = "番号だけでその場限りの対戦表を作成します（記録・レート対象外）。"; genBtn.className = "action-btn btn-teal"; genBtn.textContent = "番号のみ（その場限り）で対戦表を作成する"; updateNumberCountHint(); }
+  else { desc.textContent = "全員の出場・休憩を均等化し、連続同ペア・同4名セットを強く回避します。"; genBtn.className = "action-btn btn-primary"; genBtn.textContent = "完全ランダムモードで対戦表を作成する"; }
+}
+document.querySelectorAll("[data-genmode]").forEach(b => { b.onclick = () => { selectedGenMode = b.dataset.genmode; updateGenModeUI(); }; });
+
+function syncDraftTeamsWithAttendees() {
+  const attendees = appState.selectedAttendees.filter(p => appState.memberMaster.includes(p)), attSet = new Set(attendees);
+  if (!appState.draftTeams) appState.draftTeams = { red: [], white: [] };
+  let red = (appState.draftTeams.red || []).filter(p => attSet.has(p));
+  let white = (appState.draftTeams.white || []).filter(p => attSet.has(p));
+  const assigned = new Set([...red, ...white]);
+  attendees.forEach(p => { if (!assigned.has(p)) { if (red.length <= white.length) red.push(p); else white.push(p); } });
+  appState.draftTeams = { red, white };
+}
+
+function renderTeamSetupUI() {
+  syncDraftTeamsWithAttendees();
+  const { red, white } = appState.draftTeams, getR = (p) => cachedRatings.ratings[p] ?? DEFAULT_RATING;
+  const redSum = red.reduce((s, p) => s + getR(p), 0), whiteSum = white.reduce((s, p) => s + getR(p), 0);
+  document.getElementById("redCountLbl").textContent = red.length;
+  document.getElementById("whiteCountLbl").textContent = white.length;
+  document.getElementById("redRateLbl").textContent = `計 ${redSum.toFixed(1)}`;
+  document.getElementById("whiteRateLbl").textContent = `計 ${whiteSum.toFixed(1)}`;
+  document.getElementById("teamBalanceBadge").textContent = appState.hideRatings ? `紅${red.length} vs 白${white.length}` : `レート差 ${Math.abs(redSum - whiteSum).toFixed(2)}`;
+  const cs = parseCourtsText(document.getElementById("inpCourts").value), need = cs.length * 2;
+  document.getElementById("teamCountWarning").innerHTML = (red.length < need || white.length < need)
+    ? `<span style="color:#fca5a5;">※${cs.length}面開催には紅・白それぞれ最低 ${need}名必要です</span>` : `出場：紅${need}名・白${need}名（休憩：紅${red.length - need}名・白${white.length - need}名）`;
+  const renderChips = (list, side) => {
+    const el = document.getElementById(side === "red" ? "redTeamList" : "whiteTeamList"); el.innerHTML = "";
+    list.forEach(p => {
+      const chip = document.createElement("div"); chip.className = `team-chip ${side}`;
+      const aff = appState.memberTeams[p] ? ` [${appState.memberTeams[p]}]` : "";
+      chip.innerHTML = `<span>${p}<small style="opacity:0.75;font-size:10px;">${aff}</small></span><span class="tc-rate rating-only">R ${getR(p).toFixed(2)}</span>`;
+      chip.onclick = () => {
+        if (side === "red") { appState.draftTeams.red = appState.draftTeams.red.filter(x => x !== p); appState.draftTeams.white.push(p); }
+        else { appState.draftTeams.white = appState.draftTeams.white.filter(x => x !== p); appState.draftTeams.red.push(p); }
+        saveState(); renderTeamSetupUI();
+      };
+      el.appendChild(chip);
+    });
+  };
+  renderChips(red, "red"); renderChips(white, "white");
+}
+
+document.getElementById("btnAutoAssignTeams").onclick = () => {
+  const ps = appState.selectedAttendees.filter(p => appState.memberMaster.includes(p)); if (ps.length < 2) return;
+  refreshRatingsCache(); const res = autoAssignTeams(ps, cachedRatings.ratings);
+  appState.draftTeams = { red: res.red, white: res.white }; saveState(); renderTeamSetupUI();
+  showToast(`レート均等に自動振り分けしました（差 ${Math.abs(res.redSum - res.whiteSum).toFixed(2)}）`);
+};
+document.getElementById("btnShuffleTeams").onclick = () => {
+  const ps = shuffle(appState.selectedAttendees.filter(p => appState.memberMaster.includes(p))), mid = Math.ceil(ps.length / 2);
+  appState.draftTeams = { red: ps.slice(0, mid), white: ps.slice(mid) }; saveState(); renderTeamSetupUI();
+  showToast("紅白をランダムに振り分けました");
+};
+// NEW V9: 所属チームで紅白セット
+document.getElementById("btnAssignByAffil").onclick = () => {
+  const ps = appState.selectedAttendees.filter(p => appState.memberMaster.includes(p));
+  const groups = {};
+  ps.forEach(p => { const t = (appState.memberTeams[p] || "").trim() || "未設定"; if (!groups[t]) groups[t] = []; groups[t].push(p); });
+  const keys = Object.keys(groups).sort((a, b) => groups[b].length - groups[a].length);
+  if (keys.length < 2) { showToast("所属チームが2つ以上設定されていません"); return; }
+  const red = [...groups[keys[0]]], white = [];
+  keys.slice(1).forEach(k => white.push(...groups[k]));
+  appState.draftTeams = { red, white }; saveState(); renderTeamSetupUI();
+  showToast(`「${keys[0]}」を紅組、その他を白組にセットしました`);
+};
+
+function renderMasterAndAttendees() {
+  const master = appState.memberMaster;
+  document.getElementById("masterCountBadge").textContent = `${master.length} / ${MAX_MEMBERS}名`;
+  const tbody = document.getElementById("masterTableBody");
+  tbody.innerHTML = master.length === 0 ? `<tr><td colspan="5" style="color:var(--text-muted);padding:14px;">メンバーを登録してください</td></tr>` : "";
+
+  master.forEach(p => {
+    const initR = getInitialRating(p), curR = cachedRatings.ratings[p] !== undefined ? cachedRatings.ratings[p] : initR;
+    const aff = appState.memberTeams[p] || "";
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td class="left"><strong>${p}</strong></td>
+      <td><input type="text" class="team-input-sm" value="${aff}" placeholder="所属" data-teamof="${p}"></td>
+      <td class="rating-only"><input type="number" class="rating-input" min="1" max="10" step="0.1" value="${initR.toFixed(1)}" data-initr="${p}"></td>
+      <td class="rate-val rating-only">${curR.toFixed(2)}</td>
+      <td>
+        <button class="btn-rename-sm" data-ren="${p}">改名</button>
+        <button class="btn-del-pair" data-delm="${p}">×</button>
+      </td>`;
+    tr.querySelector(`[data-teamof="${p}"]`).onchange = (e) => {
+      const v = e.target.value.trim();
+      if (v) appState.memberTeams[p] = v; else delete appState.memberTeams[p];
+      saveState(); renderMasterAndAttendees(); renderTeamSetupUI();
+    };
+    tr.querySelector(`[data-initr="${p}"]`).onchange = (e) => {
+      appState.initialRatings[p] = Math.round(clampRating(parseFloat(e.target.value) || DEFAULT_RATING) * 10) / 10;
+      saveState(); refreshRatingsCache(); renderMasterAndAttendees(); renderRounds(); renderVerifySummary(); renderStats();
+    };
+    tr.querySelector(`[data-ren="${p}"]`).onclick = () => {
+      const nn = prompt(`「${p}」の新しい名前を入力してください（過去履歴・レートもすべて自動更新されます）`, p);
+      if (nn !== null) renameMemberGlobally(p, nn);
+    };
+    tr.querySelector(`[data-delm="${p}"]`).onclick = () => {
+      if (confirm(`「${p}」をメンバーマスターから削除しますか？`)) {
+        appState.memberMaster = appState.memberMaster.filter(x => x !== p);
+        appState.selectedAttendees = appState.selectedAttendees.filter(x => x !== p);
+        saveState(); renderMasterAndAttendees(); renderAllOptionLists();
+      }
+    };
+    tbody.appendChild(tr);
+  });
+
+  // 所属チームフィルタバー生成
+  const teamNames = Array.from(new Set(master.map(p => (appState.memberTeams[p] || "").trim()).filter(Boolean))).sort();
+  const fBar = document.getElementById("attendTeamFilterBar");
+  if (teamNames.length === 0) {
+    fBar.style.display = "none"; attendTeamFilter = "ALL";
+  } else {
+    fBar.style.display = "flex";
+    if (attendTeamFilter !== "ALL" && !teamNames.includes(attendTeamFilter)) attendTeamFilter = "ALL";
+    fBar.innerHTML = `<button class="pill-btn ${attendTeamFilter === "ALL" ? "active" : ""}" data-af="ALL">全員表示</button>` +
+      teamNames.map(t => `<button class="pill-btn ${attendTeamFilter === t ? "active" : ""}" data-af="${t}">${t}</button>`).join("");
+    fBar.querySelectorAll("[data-af]").forEach(btn => {
+      btn.onclick = () => { attendTeamFilter = btn.dataset.af; renderMasterAndAttendees(); };
+    });
+  }
+
+  const selSet = new Set(appState.selectedAttendees), grid = document.getElementById("attendGrid");
+  grid.innerHTML = "";
+  [...master]
+    .filter(p => attendTeamFilter === "ALL" || (appState.memberTeams[p] || "").trim() === attendTeamFilter)
+    .sort((a, b) => (cachedRatings.ratings[b] ?? DEFAULT_RATING) - (cachedRatings.ratings[a] ?? DEFAULT_RATING))
+    .forEach(p => {
+      const isSel = selSet.has(p), aff = appState.memberTeams[p] || "";
+      const chip = document.createElement("div"); chip.className = "attend-chip" + (isSel ? " selected" : "");
+      chip.innerHTML = `
+        <div class="chip-top"><span class="chip-name">${p}</span><span class="chip-check">${isSel ? "✓" : "＋"}</span></div>
+        <div class="chip-meta"><span class="chip-rate rating-only">R ${(cachedRatings.ratings[p] ?? DEFAULT_RATING).toFixed(2)}</span><span class="chip-team">${aff}</span></div>`;
+      chip.onclick = () => {
+        if (selSet.has(p)) appState.selectedAttendees = appState.selectedAttendees.filter(x => x !== p);
+        else appState.selectedAttendees.push(p);
+        saveState(); renderMasterAndAttendees(); renderAllOptionLists();
+      };
+      grid.appendChild(chip);
+    });
+
+  const activeCount = appState.selectedAttendees.filter(p => master.includes(p)).length;
+  document.getElementById("attendCountBadge").textContent = `${activeCount}名選択中`;
+  updatePlayerHint();
+}
+
+function updatePlayerHint() {
+  const ps = appState.selectedAttendees.filter(p => appState.memberMaster.includes(p));
+  const cs = parseCourtsText(document.getElementById("inpCourts").value), need = cs.length * 4;
+  document.getElementById("playerCountHint").innerHTML = ps.length < need
+    ? `<span style="color:#fca5a5;">現在 ${ps.length}名選択中（${cs.length}面には最低 ${need}名必要です）</span>`
+    : `選択中 ${ps.length}名 / ${cs.length}面（各ラウンド出場 ${need}名・休憩 ${ps.length - need}名）`;
+}
+
+document.getElementById("btnAddMember").onclick = () => {
+  const name = document.getElementById("inpNewMemberName").value.trim();
+  const team = document.getElementById("inpNewMemberTeam").value.trim();
+  const rate = clampRating(parseFloat(document.getElementById("inpNewMemberRate").value) || DEFAULT_RATING);
+  if (!name) return;
+  if (appState.memberMaster.includes(name)) { showToast(`「${name}」は登録済みです`); return; }
+  if (appState.memberMaster.length >= MAX_MEMBERS) { alert(`最大${MAX_MEMBERS}名まで登録できます。`); return; }
+  appState.memberMaster.push(name);
+  if (team) appState.memberTeams[name] = team;
+  appState.initialRatings[name] = Math.round(rate * 10) / 10;
+  if (!appState.selectedAttendees.includes(name)) appState.selectedAttendees.push(name);
+  document.getElementById("inpNewMemberName").value = "";
+  saveState(); refreshRatingsCache(); renderMasterAndAttendees(); renderAllOptionLists();
+  showToast(`「${name}」を登録しました`);
+};
+document.getElementById("btnBulkAddToggle").onclick = () => { const el = document.getElementById("bulkAddArea"); el.style.display = el.style.display === "none" ? "block" : "none"; };
+document.getElementById("btnBulkAddExec").onclick = () => {
+  const raw = document.getElementById("inpBulkNames").value.split(/[、,\n\r\t  ]+/).map(s => s.trim()).filter(Boolean);
+  let added = 0;
+  for (const name of raw) {
+    if (appState.memberMaster.length >= MAX_MEMBERS) break;
+    if (!appState.memberMaster.includes(name)) {
+      appState.memberMaster.push(name);
+      if (appState.initialRatings[name] === undefined) appState.initialRatings[name] = DEFAULT_RATING;
+      if (!appState.selectedAttendees.includes(name)) appState.selectedAttendees.push(name);
+      added++;
+    }
+  }
+  document.getElementById("inpBulkNames").value = ""; document.getElementById("bulkAddArea").style.display = "none";
+  saveState(); refreshRatingsCache(); renderMasterAndAttendees(); renderAllOptionLists();
+  showToast(`${added}名を一括登録しました`);
+};
+document.getElementById("btnResetInitRatings").onclick = () => {
+  if (confirm("マスター全員の初期レートを 5.0 にリセットしますか？")) {
+    appState.memberMaster.forEach(p => { appState.initialRatings[p] = DEFAULT_RATING; });
+    saveState(); renderAll(); showToast("初期レートを全員5.0にリセットしました");
+  }
+};
+document.getElementById("btnAttendAll").onclick = () => {
+  const visible = appState.memberMaster.filter(p => attendTeamFilter === "ALL" || (appState.memberTeams[p] || "").trim() === attendTeamFilter);
+  appState.selectedAttendees = Array.from(new Set([...appState.selectedAttendees, ...visible]));
+  saveState(); renderMasterAndAttendees(); renderAllOptionLists();
+};
+document.getElementById("btnAttendNone").onclick = () => { appState.selectedAttendees = []; saveState(); renderMasterAndAttendees(); renderAllOptionLists(); };
+document.getElementById("btnAttendPrev").onclick = () => {
+  const prev = (appState.lastAttendees || []).filter(p => appState.memberMaster.includes(p));
+  appState.selectedAttendees = [...prev]; saveState(); renderMasterAndAttendees(); renderAllOptionLists();
+  showToast(`前回の参加者（${prev.length}名）を復元しました`);
+};
+document.getElementById("inpCourts").addEventListener("input", () => {
+  updatePlayerHint(); updateNumberCountHint(); renderTeamSetupUI(); renderProtagonistsUI(); renderReservedMatchesUI();
+});
+
+function getAttOptsHtml(sel) {
+  const ps = appState.selectedAttendees.filter(p => appState.memberMaster.includes(p));
+  return `<option value="">選択</option>` + ps.map(p => `<option value="${p}" ${p === sel ? "selected" : ""}>${p}</option>`).join("");
+}
+function getCourtOptsHtml(sel) {
+  return parseCourtsText(document.getElementById("inpCourts").value).map(c => `<option value="${c}" ${c === sel ? "selected" : ""}>${c}</option>`).join("");
+}
+
+function renderFixedPairsUI() {
+  document.getElementById("fixedPairCountBadge").textContent = `${draftFixedPairs.length}件`;
+  const list = document.getElementById("fixedPairsList");
+  list.innerHTML = draftFixedPairs.length === 0 ? `<p class="note" style="margin-bottom:0;">固定ペアは未設定です。</p>` : "";
+  draftFixedPairs.forEach((fp, idx) => {
+    const row = document.createElement("div"); row.className = "fixed-pair-row";
+    row.innerHTML = `<select data-fp1="${idx}">${getAttOptsHtml(fp.p1)}</select><select data-fp2="${idx}">${getAttOptsHtml(fp.p2)}</select><select data-fpc="${idx}"><option value="0" ${fp.count === 0 ? "selected" : ""}>毎回固定</option>${[1,2,3,4,5,6,8,10].map(n => `<option value="${n}" ${fp.count === n ? "selected" : ""}>${n}回固定</option>`).join("")}</select><button class="btn-del-pair" data-fpd="${idx}">×</button>`;
+    row.querySelector(`[data-fp1="${idx}"]`).onchange = (e) => { draftFixedPairs[idx].p1 = e.target.value; };
+    row.querySelector(`[data-fp2="${idx}"]`).onchange = (e) => { draftFixedPairs[idx].p2 = e.target.value; };
+    row.querySelector(`[data-fpc="${idx}"]`).onchange = (e) => { draftFixedPairs[idx].count = parseInt(e.target.value, 10); };
+    row.querySelector(`[data-fpd="${idx}"]`).onclick = () => { draftFixedPairs.splice(idx, 1); renderFixedPairsUI(); };
+    list.appendChild(row);
+  });
+}
+document.getElementById("btnAddFixedPair").onclick = () => { draftFixedPairs.push({ p1: "", p2: "", count: 0 }); renderFixedPairsUI(); };
+
+function renderRelationsUI() {
+  document.getElementById("relationCountBadge").textContent = `${draftRelations.length}件`;
+  const list = document.getElementById("relationsList");
+  list.innerHTML = draftRelations.length === 0 ? `<p class="note" style="margin-bottom:0;">共演NG・希望は未設定です。</p>` : "";
+  draftRelations.forEach((rel, idx) => {
+    const row = document.createElement("div"); row.className = "fixed-pair-row";
+    row.innerHTML = `<select data-r1="${idx}">${getAttOptsHtml(rel.p1)}</select><select data-r2="${idx}">${getAttOptsHtml(rel.p2)}</select><select data-rt="${idx}"><option value="ng" ${rel.type === "ng" ? "selected" : ""}>共演NG</option><option value="wish" ${rel.type === "wish" ? "selected" : ""}>共演希望</option></select><button class="btn-del-pair" data-rd="${idx}">×</button>`;
+    row.querySelector(`[data-r1="${idx}"]`).onchange = (e) => { draftRelations[idx].p1 = e.target.value; };
+    row.querySelector(`[data-r2="${idx}"]`).onchange = (e) => { draftRelations[idx].p2 = e.target.value; };
+    row.querySelector(`[data-rt="${idx}"]`).onchange = (e) => { draftRelations[idx].type = e.target.value; };
+    row.querySelector(`[data-rd="${idx}"]`).onclick = () => { draftRelations.splice(idx, 1); renderRelationsUI(); };
+    list.appendChild(row);
+  });
+}
+document.getElementById("btnAddNgRel").onclick = () => { draftRelations.push({ p1: "", p2: "", type: "ng" }); renderRelationsUI(); };
+document.getElementById("btnAddWishRel").onclick = () => { draftRelations.push({ p1: "", p2: "", type: "wish" }); renderRelationsUI(); };
+
+function updateSpecialBadge() { document.getElementById("specialCountBadge").textContent = `${draftProtagonists.length + draftReservedMatches.length}件`; }
+function renderProtagonistsUI() {
+  updateSpecialBadge();
+  const list = document.getElementById("protagonistsList");
+  list.innerHTML = draftProtagonists.length === 0 ? `<p class="note" style="margin-bottom:8px;">主人公は未設定です。</p>` : "";
+  const cs = parseCourtsText(document.getElementById("inpCourts").value);
+  draftProtagonists.forEach((pr, idx) => {
+    if (!pr.court && cs[0]) pr.court = cs[0];
+    const row = document.createElement("div"); row.className = "prot-row";
+    row.innerHTML = `<span style="font-size:11px;font-weight:800;color:var(--gold);text-align:center;">優先${idx + 1}</span><select data-pp="${idx}">${getAttOptsHtml(pr.player)}</select><select data-pc="${idx}">${getCourtOptsHtml(pr.court)}</select><button class="btn-del-pair" data-pd="${idx}">×</button>`;
+    row.querySelector(`[data-pp="${idx}"]`).onchange = (e) => { draftProtagonists[idx].player = e.target.value; };
+    row.querySelector(`[data-pc="${idx}"]`).onchange = (e) => { draftProtagonists[idx].court = e.target.value; };
+    row.querySelector(`[data-pd="${idx}"]`).onclick = () => { draftProtagonists.splice(idx, 1); renderProtagonistsUI(); };
+    list.appendChild(row);
+  });
+}
+document.getElementById("btnAddProtagonist").onclick = () => {
+  if (draftProtagonists.length >= 3) { showToast("主人公は最大3名まで設定できます"); return; }
+  draftProtagonists.push({ player: "", court: parseCourtsText(document.getElementById("inpCourts").value)[0] || "" });
+  renderProtagonistsUI();
+};
+
+function renderReservedMatchesUI() {
+  updateSpecialBadge();
+  const list = document.getElementById("reservedMatchesList");
+  list.innerHTML = draftReservedMatches.length === 0 ? `<p class="note" style="margin-bottom:0;">固定試合の予約はありません。</p>` : "";
+  const cs = parseCourtsText(document.getElementById("inpCourts").value);
+  draftReservedMatches.forEach((rm, idx) => {
+    if (!rm.court && cs[0]) rm.court = cs[0];
+    const row = document.createElement("div"); row.className = "reserved-row";
+    row.innerHTML = `
+      <div class="reserved-top"><input type="number" min="1" max="30" value="${rm.r || 1}" data-rmr="${idx}" placeholder="R"><select data-rmc="${idx}">${getCourtOptsHtml(rm.court)}</select><button class="btn-del-pair" data-rmd="${idx}">×</button></div>
+      <div class="reserved-players"><select data-rm1a="${idx}">${getAttOptsHtml(rm.p1[0])}</select><select data-rm1b="${idx}">${getAttOptsHtml(rm.p1[1])}</select><span style="font-size:11px;font-weight:800;color:var(--gold);">vs</span><select data-rm2a="${idx}">${getAttOptsHtml(rm.p2[0])}</select><select data-rm2b="${idx}">${getAttOptsHtml(rm.p2[1])}</select></div>`;
+    row.querySelector(`[data-rmr="${idx}"]`).onchange = (e) => { draftReservedMatches[idx].r = parseInt(e.target.value, 10) || 1; };
+    row.querySelector(`[data-rmc="${idx}"]`).onchange = (e) => { draftReservedMatches[idx].court = e.target.value; };
+    row.querySelector(`[data-rm1a="${idx}"]`).onchange = (e) => { draftReservedMatches[idx].p1[0] = e.target.value; };
+    row.querySelector(`[data-rm1b="${idx}"]`).onchange = (e) => { draftReservedMatches[idx].p1[1] = e.target.value; };
+    row.querySelector(`[data-rm2a="${idx}"]`).onchange = (e) => { draftReservedMatches[idx].p2[0] = e.target.value; };
+    row.querySelector(`[data-rm2b="${idx}"]`).onchange = (e) => { draftReservedMatches[idx].p2[1] = e.target.value; };
+    row.querySelector(`[data-rmd="${idx}"]`).onclick = () => { draftReservedMatches.splice(idx, 1); renderReservedMatchesUI(); };
+    list.appendChild(row);
+  });
+}
+document.getElementById("btnAddReservedMatch").onclick = () => {
+  draftReservedMatches.push({ r: 1, court: parseCourtsText(document.getElementById("inpCourts").value)[0] || "", p1: ["", ""], p2: ["", ""] });
+  renderReservedMatchesUI();
+};
+
+function saveCurrentToHistoryInternal() {
+  if (isCurNumberMode()) return;
+  const snap = deepClone(cur()); snap.savedAt = new Date().toISOString();
+  const idx = appState.history.findIndex(h => h.id === snap.id);
+  if (idx >= 0) appState.history[idx] = snap; else appState.history.unshift(snap);
+  appState.history.sort((a, b) => (b.date || "").localeCompare(a.date || ""));
+  saveState();
+}
+
+document.getElementById("btnGenerate").onclick = () => {
+  const date = document.getElementById("inpDate").value || todayStr();
+  const title = document.getElementById("inpTitle").value.trim() || "バドミントン ダブルス対戦表";
+  const courts = parseCourtsText(document.getElementById("inpCourts").value);
+  const rounds = Math.max(1, Math.min(30, parseInt(document.getElementById("inpRounds").value, 10) || 15));
+  const players = selectedGenMode === "number"
+    ? Array.from({ length: Math.max(4, Math.min(40, parseInt(document.getElementById("inpNumberPlayers").value, 10) || 8)) }, (_, i) => String(i + 1))
+    : appState.selectedAttendees.filter(p => appState.memberMaster.includes(p));
+
+  if (!isCurNumberMode() && countValidMatches(cur()).done > 0) {
+    if (confirm(`現在の開催にスコアが入力されています。新規作成前に履歴へ保存しますか？`)) saveCurrentToHistoryInternal();
+    else return;
+  }
+  refreshRatingsCache(); syncDraftTeamsWithAttendees();
+  try {
+    const newSchedule = generateOptimizedSchedule(players, courts, rounds, {
+      fixedPairsInput: selectedGenMode === "number" ? [] : draftFixedPairs,
+      relationsInput: selectedGenMode === "number" ? [] : draftRelations,
+      protagonists: selectedGenMode === "number" ? [] : draftProtagonists,
+      reservedMatches: selectedGenMode === "number" ? [] : draftReservedMatches,
+      mode: selectedGenMode, teamSubMode: selectedTeamSubMode,
+      teams: deepClone(appState.draftTeams), currentRatingsMap: cachedRatings.ratings
+    });
+    if (selectedGenMode !== "number") appState.lastAttendees = [...players];
+    appState.current = {
+      id: genId(), date,
+      config: {
+        title, players, rounds, courts,
+        fixedPairs: selectedGenMode === "number" ? [] : deepClone(draftFixedPairs),
+        relations: selectedGenMode === "number" ? [] : deepClone(draftRelations),
+        protagonists: selectedGenMode === "number" ? [] : deepClone(draftProtagonists),
+        reservedMatches: selectedGenMode === "number" ? [] : deepClone(draftReservedMatches),
+        mode: selectedGenMode, teamSubMode: selectedTeamSubMode,
+        teams: selectedGenMode === "team" ? deepClone(appState.draftTeams) : { red: [], white: [] },
+        matchPoints: selectedSetupPts
+      },
+      schedule: newSchedule, scores: {}
+    };
+    appState.feeConfig.normalCnt = players.length;
+    appState.feeConfig.discountCnt = 0;
+    saveState(); renderAll();
+    document.getElementById("imgPreviewWrap").style.display = "none";
+    document.getElementById("reportImgPreviewWrap").style.display = "none";
+    showToast("新しい対戦表を作成しました！");
+    document.getElementById("verifyBox").scrollIntoView({ behavior: "smooth" });
+  } catch (err) { alert(err.message); }
+};
+
+// ==========================================
+// NEW V9: FEE SPLIT CALCULATOR
+// ==========================================
+function renderFeeCalculator() {
+  const fc = appState.feeConfig || deepClone(DEFAULT_FEE_CONFIG);
+  document.getElementById("feeCurrency").value = fc.currency || "元";
+  document.getElementById("feeRoundUnit").value = String(fc.roundUnit || 1);
+  document.getElementById("feeCourtTotal").value = fc.courtTotal ?? 300;
+  document.getElementById("feeOther").value = fc.other ?? 0;
+  document.getElementById("feeShuttleUnit").value = fc.shuttleUnit ?? 12;
+  document.getElementById("feeShuttleQty").value = fc.shuttleQty ?? 12;
+  document.getElementById("feeNormalCnt").value = fc.normalCnt ?? cur().config.players.length;
+  document.getElementById("feeDiscountCnt").value = fc.discountCnt ?? 0;
+  document.getElementById("feeDiscountOff").value = fc.discountOff ?? 20;
+  updateFeeCalculation();
+}
+
+function updateFeeCalculation() {
+  const fc = {
+    currency: document.getElementById("feeCurrency").value,
+    roundUnit: Math.max(1, Number(document.getElementById("feeRoundUnit").value) || 1),
+    courtTotal: Math.max(0, Number(document.getElementById("feeCourtTotal").value) || 0),
+    other: Math.max(0, Number(document.getElementById("feeOther").value) || 0),
+    shuttleUnit: Math.max(0, Number(document.getElementById("feeShuttleUnit").value) || 0),
+    shuttleQty: Math.max(0, Number(document.getElementById("feeShuttleQty").value) || 0),
+    normalCnt: Math.max(0, parseInt(document.getElementById("feeNormalCnt").value, 10) || 0),
+    discountCnt: Math.max(0, parseInt(document.getElementById("feeDiscountCnt").value, 10) || 0),
+    discountOff: Math.max(0, Number(document.getElementById("feeDiscountOff").value) || 0)
+  };
+  appState.feeConfig = fc;
+  saveState();
+
+  const shuttleTotal = Math.round(fc.shuttleUnit * fc.shuttleQty);
+  const grandTotal = fc.courtTotal + shuttleTotal + fc.other;
+  const totalPeople = fc.normalCnt + fc.discountCnt;
+
+  const ceilUnit = (v, u) => Math.ceil(v / u) * u;
+  let normalFee = 0, discFee = 0;
+  if (totalPeople > 0) {
+    // 割引枠の割引総額を全体から調整して通常単価を算出
+    const rawNormal = (grandTotal + fc.discountCnt * fc.discountOff) / totalPeople;
+    normalFee = ceilUnit(rawNormal, fc.roundUnit);
+    discFee = Math.max(0, normalFee - fc.discountOff);
+  }
+  const collected = normalFee * fc.normalCnt + discFee * fc.discountCnt;
+  const surplus = collected - grandTotal;
+  const u = fc.currency;
+
+  document.getElementById("feeSummaryGrid").innerHTML = `
+    <div class="stat-pill"><div class="lbl">総費用（コート＋シャトル等）</div><div class="val">${grandTotal.toLocaleString()}${u}</div></div>
+    <div class="stat-pill"><div class="lbl">通常参加（${fc.normalCnt}名）</div><div class="val" style="color:var(--gold);">${normalFee.toLocaleString()}${u} / 人</div></div>
+    ${fc.discountCnt > 0 ? `<div class="stat-pill"><div class="lbl">割引枠（${fc.discountCnt}名）</div><div class="val" style="color:var(--accent);">${discFee.toLocaleString()}${u} / 人</div></div>` : ""}
+    <div class="stat-pill"><div class="lbl">徴収合計（余剰）</div><div class="val">${collected.toLocaleString()}${u}（+${surplus}${u}）</div></div>`;
+
+  const lines = [
+    `【清算のご案内】${cur().date} ${cur().config.title}`,
+    `■ 費用内訳`,
+    `・コート代：${fc.courtTotal.toLocaleString()}${u}`,
+    `・シャトル代：${shuttleTotal.toLocaleString()}${u}（${fc.shuttleUnit}${u}×${fc.shuttleQty}個）`,
+    ...(fc.other > 0 ? [`・その他：${fc.other.toLocaleString()}${u}`] : []),
+    `▶ 合計：${grandTotal.toLocaleString()}${u}（参加 ${totalPeople}名）`,
+    ``,
+    `■ お一人様あたり`,
+    `・通常参加（${fc.normalCnt}名）：${normalFee.toLocaleString()}${u}`,
+    ...(fc.discountCnt > 0 ? [`・割引枠（${fc.discountCnt}名）：${discFee.toLocaleString()}${u}`] : []),
+    `よろしくお願いいたします！`
+  ];
+  document.getElementById("feeTextPreview").value = lines.join("\n");
+}
+["feeCurrency","feeRoundUnit","feeCourtTotal","feeOther","feeShuttleUnit","feeShuttleQty","feeNormalCnt","feeDiscountCnt","feeDiscountOff"].forEach(id => {
+  document.getElementById(id).addEventListener("input", updateFeeCalculation);
+  document.getElementById(id).addEventListener("change", updateFeeCalculation);
+});
+document.getElementById("btnCopyFeeText").onclick = () => copyText(document.getElementById("feeTextPreview").value, "feeTextPreview", "清算テキストをコピーしました！");
+
+// ==========================================
+// VERIFY SUMMARY, STATS, HISTORY, IMAGES & EXPORT
+// ==========================================
+function renderVerifySummary() {
+  const ps = cur().config.players, isNum = isCurNumberMode(), isTeam = isCurTeamMode();
+  const playCnt = Object.fromEntries(ps.map(p => [p, 0])), restCnt = Object.fromEntries(ps.map(p => [p, 0])), consecCnt = Object.fromEntries(ps.map(p => [p, 0]));
+  const matchupCnt = {}; let prevRest = new Set(), sumDiff = 0, maxDiff = 0, totalM = 0;
+
+  cur().schedule.forEach(item => {
+    const curRest = new Set(item.rest || []);
+    item.matches.forEach(m => {
+      [...m.p1, ...m.p2].forEach(p => { if (playCnt[p] !== undefined) playCnt[p]++; });
+      const mk = matchupKey(m.p1, m.p2); matchupCnt[mk] = (matchupCnt[mk] || 0) + 1;
+      if (!isNum) {
+        const d = Math.abs(((cachedRatings.ratings[m.p1[0]] ?? DEFAULT_RATING) + (cachedRatings.ratings[m.p1[1]] ?? DEFAULT_RATING)) - ((cachedRatings.ratings[m.p2[0]] ?? DEFAULT_RATING) + (cachedRatings.ratings[m.p2[1]] ?? DEFAULT_RATING)));
+        sumDiff += d; if (d > maxDiff) maxDiff = d;
+      }
+      totalM++;
+    });
+    curRest.forEach(p => { if (restCnt[p] !== undefined) restCnt[p]++; if (prevRest.has(p) && consecCnt[p] !== undefined) consecCnt[p]++; });
+    prevRest = curRest;
+  });
+
+  const pill = document.getElementById("verifyModePill");
+  if (isNum) { pill.textContent = `番号のみ / ${getCurMatchPts()}点`; pill.className = "mode-pill num"; }
+  else if (isTeam) { pill.textContent = `紅白戦 / ${getCurMatchPts()}点`; pill.className = "mode-pill team"; }
+  else if (cur().config.mode === "rating") { pill.textContent = `実力拮抗(R) / ${getCurMatchPts()}点`; pill.className = "mode-pill"; }
+  else { pill.textContent = `完全ランダム / ${getCurMatchPts()}点`; pill.className = "mode-pill rand"; }
+
+  document.getElementById("verifyRateTh").style.display = isNum ? "none" : "";
+  const pVals = Object.values(playCnt), totalConsec = Object.values(consecCnt).reduce((a, b) => a + b, 0), dupMatchups = Object.values(matchupCnt).filter(v => v > 1).length;
+  document.getElementById("verifyMetrics").innerHTML = `
+    <div class="stat-pill"><div class="lbl">出場数レンジ</div><div class="val">${Math.min(...pVals)} 〜 ${Math.max(...pVals)}回</div></div>
+    <div class="stat-pill"><div class="lbl">連続休憩</div><div class="val" style="color:${totalConsec === 0 ? '#86efac' : '#fca5a5'}">${totalConsec}回</div></div>
+    ${isNum ? "" : `<div class="stat-pill rating-only"><div class="lbl">平均ペアレート差</div><div class="val" style="color:#ddd6fe;">${totalM ? (sumDiff / totalM).toFixed(2) : "0.00"}（最大 ${maxDiff.toFixed(2)}）</div></div>`}
+    <div class="stat-pill"><div class="lbl">同一対戦カード重複</div><div class="val" style="color:${dupMatchups === 0 ? '#86efac' : '#fde68a'}">${dupMatchups}組</div></div>`;
+
+  const redSet = new Set(cur().config.teams?.red || []);
+  document.getElementById("verifyBody").innerHTML = ps.map(p => {
+    const tag = isTeam ? (redSet.has(p) ? '<span class="team-tag red">紅</span>' : '<span class="team-tag white">白</span>') : '';
+    return `<tr><td class="left">${tag}<strong>${isNum ? p + "番" : p}</strong></td>${isNum ? "" : `<td class="rate-val rating-only">${(cachedRatings.ratings[p] ?? DEFAULT_RATING).toFixed(2)}</td>`}<td>${playCnt[p]}回</td><td>${restCnt[p]}回</td><td class="${consecCnt[p] === 0 ? 'pos' : 'neg'}">${consecCnt[p] === 0 ? 'なし' : consecCnt[p] + '回'}</td></tr>`;
+  }).join("");
+}
+
+function aggregateStats(sessions) {
+  const pMap = {}, pairMap = {}, partnerMap = {}, oppMap = {}; let totalValidMatches = 0;
+  const ensureP = (n) => { if (!pMap[n]) pMap[n] = { name: n, games: 0, wins: 0, losses: 0, pf: 0, pa: 0 }; if (!partnerMap[n]) partnerMap[n] = {}; if (!oppMap[n]) oppMap[n] = {}; };
+  sessions.forEach(sess => {
+    (sess.config.players || []).forEach(ensureP);
+    sess.schedule.forEach(item => item.matches.forEach((m, idx) => {
+      const id = matchId(item.r, idx); if (!isMatchValidOf(sess, id)) return;
+      totalValidMatches++; const sc = getScoreOf(sess, id), s1 = Number(sc.s1), s2 = Number(sc.s2), w1 = s1 > s2, w2 = s2 > s1;
+      const [a1, a2] = m.p1, [b1, b2] = m.p2; [a1, a2, b1, b2].forEach(ensureP);
+      m.p1.forEach(p => { pMap[p].games++; pMap[p].pf += s1; pMap[p].pa += s2; if (w1) pMap[p].wins++; else if (w2) pMap[p].losses++; });
+      m.p2.forEach(p => { pMap[p].games++; pMap[p].pf += s2; pMap[p].pa += s1; if (w2) pMap[p].wins++; else if (w1) pMap[p].losses++; });
+      const k1 = [...m.p1].sort().join("・"), k2 = [...m.p2].sort().join("・");
+      if (!pairMap[k1]) pairMap[k1] = { pair: k1, games: 0, wins: 0, losses: 0, pf: 0, pa: 0 };
+      if (!pairMap[k2]) pairMap[k2] = { pair: k2, games: 0, wins: 0, losses: 0, pf: 0, pa: 0 };
+      pairMap[k1].games++; pairMap[k1].pf += s1; pairMap[k1].pa += s2; if (w1) pairMap[k1].wins++; else if (w2) pairMap[k1].losses++;
+      pairMap[k2].games++; pairMap[k2].pf += s2; pairMap[k2].pa += s1; if (w2) pairMap[k2].wins++; else if (w1) pairMap[k2].losses++;
+      const addRel = (obj, p, o, iw, il, pf, pa) => { if (!obj[p][o]) obj[p][o] = { name: o, games: 0, wins: 0, losses: 0, pf: 0, pa: 0 }; obj[p][o].games++; obj[p][o].pf += pf; obj[p][o].pa += pa; if (iw) obj[p][o].wins++; else if (il) obj[p][o].losses++; };
+      addRel(partnerMap, a1, a2, w1, w2, s1, s2); addRel(partnerMap, a2, a1, w1, w2, s1, s2);
+      addRel(partnerMap, b1, b2, w2, w1, s2, s1); addRel(partnerMap, b2, b1, w2, w1, s2, s1);
+      for (const u of m.p1) for (const v of m.p2) { addRel(oppMap, u, v, w1, w2, s1, s2); addRel(oppMap, v, u, w2, w1, s2, s1); }
+    }));
+  });
+  return { pMap, pairMap, partnerMap, oppMap, totalValidMatches };
+}
+
+function renderTeamStatsCard() {
+  const card = document.getElementById("teamStatsCard");
+  if (statsScope !== "current" || !isCurTeamMode()) { card.style.display = "none"; return; }
+  card.style.display = "block";
+  const ts = aggregateTeamStats(cur());
+  const banner = ts.validMatches === 0 ? "スコアを入力すると勝敗判定が表示されます"
+    : (ts.winner === "red" ? `🏆 紅組の勝利！（${ts.red.wins}勝 vs ${ts.white.wins}勝）` : (ts.winner === "white" ? `🏆 白組の勝利！（${ts.white.wins}勝 vs ${ts.red.wins}勝）` : `🤝 引き分け（${ts.red.wins}勝 vs ${ts.white.wins}勝）`));
+  document.getElementById("teamScoreboardWrap").innerHTML = `
+    <div class="team-scoreboard">
+      <div class="tsb-side red"><div class="tsb-name">紅組</div><div class="tsb-wins">${ts.red.wins}<span style="font-size:13px;">勝</span></div><div class="tsb-sub">総得点 ${ts.red.pf} / 差 ${ts.red.diff >= 0 ? '+' : ''}${ts.red.diff}</div></div>
+      <div class="tsb-vs">VS</div>
+      <div class="tsb-side white"><div class="tsb-name">白組</div><div class="tsb-wins">${ts.white.wins}<span style="font-size:13px;">勝</span></div><div class="tsb-sub">総得点 ${ts.white.pf} / 差 ${ts.white.diff >= 0 ? '+' : ''}${ts.white.diff}</div></div>
+    </div><div class="tsb-result-banner">${banner}</div>`;
+}
+
+function renderStats() {
+  renderTeamStatsCard();
+  const sessions = getSessionsForScope(statsScope), { pMap, pairMap, partnerMap, oppMap, totalValidMatches } = aggregateStats(sessions);
+  document.getElementById("statsScopeNote").textContent = (statsScope === "current" && isCurNumberMode())
+    ? "番号のみモードは集計対象外です。" : (statsScope === "current" ? `集計対象：今回（${cur().date} / 入力済 ${totalValidMatches}試合）` : `集計対象：全 ${sessions.length}開催（合計 ${totalValidMatches}試合）`);
+  if (appState.hideRatings && playerSortBy === "rating") playerSortBy = "winrate";
+  const pList = Object.values(pMap).sort((a, b) => {
+    const rtA = cachedRatings.ratings[a.name] ?? DEFAULT_RATING, rtB = cachedRatings.ratings[b.name] ?? DEFAULT_RATING;
+    const rA = a.games ? a.wins / a.games : -1, rB = b.games ? b.wins / b.games : -1, dA = a.pf - a.pa, dB = b.pf - b.pa;
+    if (playerSortBy === "rating") return rtB !== rtA ? rtB - rtA : rB - rA;
+    if (playerSortBy === "diff") return dB !== dA ? dB - dA : rB - rA;
+    return rB !== rA ? rB - rA : (dB !== dA ? dB - dA : rtB - rtA);
+  });
+  document.getElementById("playerStatsBody").innerHTML = pList.length === 0 ? `<tr><td colspan="7" style="color:var(--text-muted);padding:16px;">データがありません</td></tr>`
+    : pList.map((p, i) => {
+        const diff = p.pf - p.pa, curR = cachedRatings.ratings[p.name] ?? getInitialRating(p.name);
+        const rD = statsScope === "current" ? (cachedRatings.curDelta[p.name] ?? 0) : (curR - getInitialRating(p.name));
+        const rDStr = Math.abs(rD) < 0.005 ? "" : (rD > 0 ? ` <span class="pos" style="font-size:11px;">(+${rD.toFixed(2)})</span>` : ` <span class="neg" style="font-size:11px;">(${rD.toFixed(2)})</span>`);
+        return `<tr><td>${i + 1}</td><td class="left"><strong>${p.name}</strong></td><td class="rate-val rating-only">${curR.toFixed(2)}${rDStr}</td><td>${p.games}</td><td>${p.wins}-${p.losses}</td><td>${p.games ? Math.round((p.wins / p.games) * 100) + "%" : "-"}</td><td class="${diff > 0 ? 'pos' : (diff < 0 ? 'neg' : '')}">${p.games ? (diff > 0 ? `+${diff}` : diff) : "-"}</td></tr>`;
+      }).join("");
+
+  const pairList = Object.values(pairMap).filter(pr => pr.games >= pairMinGames).sort((a, b) => (b.wins / b.games) - (a.wins / a.games) || ((b.pf - b.pa) / b.games) - ((a.pf - a.pa) / a.games));
+  document.getElementById("pairStatsBody").innerHTML = pairList.length === 0 ? `<tr><td colspan="7" style="color:var(--text-muted);padding:16px;">該当ペアなし</td></tr>`
+    : pairList.map((pr, i) => { const d = pr.pf - pr.pa, avg = ((pr.pf - pr.pa) / pr.games).toFixed(1); return `<tr><td>${i + 1}</td><td class="left"><strong>${pr.pair}</strong></td><td>${pr.games}</td><td>${pr.wins}-${pr.losses}</td><td>${Math.round((pr.wins / pr.games) * 100)}%</td><td class="${d > 0 ? 'pos' : (d < 0 ? 'neg' : '')}">${d > 0 ? `+${d}` : d}</td><td class="${d > 0 ? 'pos' : (d < 0 ? 'neg' : '')}">${Number(avg) > 0 ? `+${avg}` : avg}</td></tr>`; }).join("");
+
+  const allNames = Object.keys(pMap).sort();
+  if (!selectedAffinityPlayer || !allNames.includes(selectedAffinityPlayer)) selectedAffinityPlayer = allNames[0] || "";
+  document.getElementById("selAffinityPlayer").innerHTML = allNames.length
+    ? allNames.map(n => `<option value="${n}" ${n === selectedAffinityPlayer ? "selected" : ""}>${n}${appState.hideRatings ? "" : `（R:${(cachedRatings.ratings[n] ?? DEFAULT_RATING).toFixed(2)}）`}</option>`).join("") : `<option value="">データなし</option>`;
+  const renderRel = (obj) => {
+    const list = Object.values(obj || {}).sort((a, b) => (b.wins / b.games) - (a.wins / a.games) || ((b.pf - b.pa) / b.games) - ((a.pf - a.pa) / a.games));
+    return !list.length ? `<tr><td colspan="6" style="color:var(--text-muted);padding:12px;">データなし</td></tr>`
+      : list.map(it => { const d = it.pf - it.pa, avg = ((it.pf - it.pa) / it.games).toFixed(1); return `<tr><td class="left"><strong>${it.name}</strong></td><td>${it.games}</td><td>${it.wins}-${it.losses}</td><td>${Math.round((it.wins / it.games) * 100)}%</td><td class="${d > 0 ? 'pos' : (d < 0 ? 'neg' : '')}">${d > 0 ? `+${d}` : d}</td><td class="${d > 0 ? 'pos' : (d < 0 ? 'neg' : '')}">${Number(avg) > 0 ? `+${avg}` : avg}</td></tr>`; }).join("");
+  };
+  document.getElementById("affinityPartnerBody").innerHTML = renderRel(partnerMap[selectedAffinityPlayer]);
+  document.getElementById("affinityOppBody").innerHTML = renderRel(oppMap[selectedAffinityPlayer]);
+}
+
+document.querySelectorAll("[data-scope]").forEach(b => { b.onclick = () => { document.querySelectorAll("[data-scope]").forEach(x => x.classList.remove("active")); b.classList.add("active"); statsScope = b.dataset.scope; renderStats(); }; });
+document.querySelectorAll("#playerSortFilter .pill-btn").forEach(b => { b.onclick = () => { document.querySelectorAll("#playerSortFilter .pill-btn").forEach(x => x.classList.remove("active")); b.classList.add("active"); playerSortBy = b.dataset.psort; renderStats(); }; });
+document.querySelectorAll("#pairMinFilter .pill-btn").forEach(b => { b.onclick = () => { document.querySelectorAll("#pairMinFilter .pill-btn").forEach(x => x.classList.remove("active")); b.classList.add("active"); pairMinGames = parseInt(b.dataset.min, 10) || 1; renderStats(); }; });
+document.getElementById("selAffinityPlayer").onchange = (e) => { selectedAffinityPlayer = e.target.value; renderStats(); };
+
+function renderHistoryTab() {
+  const { done, total } = countValidMatches(cur()), isSaved = appState.history.some(h => h.id === cur().id), isNum = isCurNumberMode();
+  document.getElementById("currentSessionInfo").innerHTML = `
+    <div class="stat-pill"><div class="lbl">現在の開催日 / タイトル</div><div class="val" style="font-size:13px;">${cur().date}<br>${cur().config.title}</div></div>
+    <div class="stat-pill"><div class="lbl">進捗 / ステータス</div><div class="val" style="font-size:13px;">${isNum ? '番号のみ' : `${done} / ${total}試合 (${getCurMatchPts()}点)`}<br><span style="color:${isNum ? '#5eead4' : (isSaved ? '#86efac' : '#fde68a')}">${isNum ? '記録対象外' : (isSaved ? '履歴に登録済' : '未保存')}</span></div></div>`;
+  const saveBtn = document.getElementById("btnSaveToHistory"); saveBtn.disabled = isNum; saveBtn.style.opacity = isNum ? "0.45" : "1";
+  document.getElementById("historyCountBadge").textContent = `${appState.history.length}件`;
+  const container = document.getElementById("historyListContainer");
+  container.innerHTML = appState.history.length === 0 ? `<p class="note" style="text-align:center;padding:16px 0;">履歴はありません。</p>` : "";
+  appState.history.forEach(h => {
+    const c = countValidMatches(h), isCur = h.id === cur().id;
+    const mLbl = h.config.mode === "team" ? "紅白戦" : (h.config.mode === "rating" ? "実力拮抗" : "ランダム");
+    const card = document.createElement("div"); card.className = "history-card" + (isCur ? " is-current" : "");
+    card.innerHTML = `
+      <div class="history-top"><div class="history-title">${h.config.title}${isCur ? ' <span class="win-tag" style="background:var(--accent);color:#0b132b;">表示中</span>' : ''}</div><div class="history-date">${h.date || ""}</div></div>
+      <div class="history-meta">${h.config.players.length}名・${h.config.courts.length}面・${h.schedule.length}R・${mLbl}（入力済 ${c.done}/${c.total}試合）</div>
+      <div class="history-actions"><button class="action-btn btn-secondary btn-small" data-lh="${h.id}">この開催を開く</button><button class="action-btn btn-danger btn-small" data-dh="${h.id}">削除</button></div>`;
+    card.querySelector(`[data-lh="${h.id}"]`).onclick = () => {
+      if (isCur) { showToast("すでに表示中です"); return; }
+      appState.current = ensureV9Fields({ current: deepClone(h), history: [] }).current;
+      saveState(); renderAll(); showToast(`${h.date} の開催を読み込みました`);
+    };
+    card.querySelector(`[data-dh="${h.id}"]`).onclick = () => {
+      if (confirm(`「${h.date} ${h.config.title}」を削除しますか？`)) { appState.history = appState.history.filter(x => x.id !== h.id); saveState(); renderAll(); showToast("履歴を削除しました"); }
+    };
+    container.appendChild(card);
+  });
+}
+document.getElementById("btnSaveToHistory").onclick = () => { if (!isCurNumberMode()) { saveCurrentToHistoryInternal(); renderAll(); showToast("履歴に保存しました！"); } };
+
+// Canvas Helpers & Image Generators
+function wrapTextLines(ctx, text, maxW) {
+  const tokens = text.split("・"), lines = []; let line = "";
+  for (const t of tokens) { const test = line ? `${line}・${t}` : t; if (ctx.measureText(test).width > maxW && line) { lines.push(line); line = t; } else line = test; }
+  if (line) lines.push(line); return lines;
+}
+function drawRoundedRect(ctx, x, y, w, h, r) {
+  ctx.beginPath(); ctx.moveTo(x + r, y); ctx.lineTo(x + w - r, y); ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+  ctx.lineTo(x + w, y + h - r); ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h); ctx.lineTo(x + r, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - r); ctx.lineTo(x, y + r); ctx.quadraticCurveTo(x, y, x + r, y); ctx.closePath();
+}
+function drawSportyBackground(ctx, W, H) {
+  const g = ctx.createLinearGradient(0, 0, W, H); g.addColorStop(0, "#071329"); g.addColorStop(0.55, "#0d2545"); g.addColorStop(1, "#0b3a4a");
+  ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+}
+
+function generateResultReportImage() {
+  if (isCurNumberMode()) throw new Error("番号のみモードは結果レポート画像を作成できません。");
+  refreshRatingsCache();
+  const sess = cur(), { pMap, pairMap, totalValidMatches } = aggregateStats([sess]);
+  if (totalValidMatches === 0) throw new Error("スコアが入力された試合がまだありません。");
+  const showRate = !appState.hideRatings, includeMatches = !!appState.reportIncludeMatches, isTeamSess = (sess.config.mode === "team");
+  const fontBase = '"Hiragino Kaku Gothic ProN", "Noto Sans JP", Meiryo, sans-serif';
+  const pList = Object.values(pMap).filter(p => p.games > 0).sort((a, b) => (b.wins / b.games) - (a.wins / a.games) || (b.pf - b.pa) - (a.pf - a.pa));
+  const topPairs = Object.values(pairMap).sort((a, b) => (b.wins / b.games) - (a.wins / a.games) || ((b.pf - b.pa) / b.games) - ((a.pf - a.pa) / a.games)).slice(0, 5);
+  const completedMatches = [];
+  sess.schedule.forEach(item => item.matches.forEach((m, idx) => { const id = matchId(item.r, idx); if (isMatchValidOf(sess, id)) { const sc = getScoreOf(sess, id); completedMatches.push({ r: item.r, court: m.court, p1: m.p1, p2: m.p2, s1: Number(sc.s1), s2: Number(sc.s2) }); } }));
+
+  const W = 1080, padX = 48, contentW = W - padX * 2, headerH = 155, secGap = 28, teamBannerH = isTeamSess ? 156 : 0, awardsH = 128, secTitleH = 40, thH = 46, rowH = 50;
+  const pTableH = thH + pList.length * rowH, prTableH = thH + topPairs.length * rowH, mRows = Math.ceil(completedMatches.length / 2);
+  const matchesH = (includeMatches && completedMatches.length) ? (secGap + secTitleH + mRows * 74 + Math.max(0, mRows - 1) * 12) : 0;
+  const H = headerH + teamBannerH + awardsH + secGap + secTitleH + pTableH + secGap + secTitleH + prTableH + matchesH + 54;
+
+  const canvas = document.createElement("canvas"); canvas.width = W; canvas.height = H;
+  const ctx = canvas.getContext("2d"); drawSportyBackground(ctx, W, H);
+  ctx.textAlign = "center"; ctx.textBaseline = "middle";
+  ctx.font = `800 38px ${fontBase}`; ctx.fillStyle = "#facc15"; ctx.fillText(`${sess.config.title} 結果レポート`, W / 2, 56);
+  ctx.font = `700 21px ${fontBase}`; ctx.fillStyle = "#cbd5e1"; ctx.fillText(`${sess.date} ｜ ${getCurMatchPts()}点マッチ ｜ 参加 ${pList.length}名 ｜ 全 ${totalValidMatches}試合`, W / 2, 110);
+
+  let y = headerH;
+  if (isTeamSess) {
+    const ts = aggregateTeamStats(sess); drawRoundedRect(ctx, padX, y, contentW, 128, 14);
+    ctx.fillStyle = "rgba(11,19,43,0.82)"; ctx.fill(); ctx.strokeStyle = "rgba(239,68,68,0.55)"; ctx.lineWidth = 2; ctx.stroke();
+    const wLbl = ts.winner === "red" ? "紅組 WIN!" : (ts.winner === "white" ? "白組 WIN!" : "DRAW");
+    ctx.font = `800 22px ${fontBase}`; ctx.fillStyle = "#facc15"; ctx.fillText(`紅白戦 チーム結果 【 ${wLbl} 】`, W / 2, y + 30);
+    ctx.font = `800 30px ${fontBase}`; ctx.fillStyle = "#fca5a5"; ctx.fillText(`紅組 ${ts.red.wins}勝`, padX + contentW * 0.25, y + 72);
+    ctx.font = `700 18px ${fontBase}`; ctx.fillStyle = "#e2e8f0"; ctx.fillText(`総得点 ${ts.red.pf}（差 ${ts.red.diff >= 0 ? '+' : ''}${ts.red.diff}）`, padX + contentW * 0.25, y + 104);
+    ctx.font = `900 24px ${fontBase}`; ctx.fillStyle = "#facc15"; ctx.fillText("VS", W / 2, y + 80);
+    ctx.font = `800 30px ${fontBase}`; ctx.fillStyle = "#f8fafc"; ctx.fillText(`白組 ${ts.white.wins}勝`, padX + contentW * 0.75, y + 72);
+    ctx.font = `700 18px ${fontBase}`; ctx.fillStyle = "#e2e8f0"; ctx.fillText(`総得点 ${ts.white.pf}（差 ${ts.white.diff >= 0 ? '+' : ''}${ts.white.diff}）`, padX + contentW * 0.75, y + 104);
+    y += 156;
+  }
+
+  const mvp = pList[0], bestDiff = [...pList].sort((a, b) => (b.pf - b.pa) - (a.pf - a.pa))[0], brk = [...pList].sort((a, b) => (cachedRatings.curDelta[b.name] ?? 0) - (cachedRatings.curDelta[a.name] ?? 0))[0];
+  const awards = [{ label: "MVP（1位）", col: "#facc15", name: mvp.name, sub: `${mvp.wins}勝${mvp.losses}敗 (${Math.round((mvp.wins / mvp.games) * 100)}%)` }, { label: "最大得失点差", col: "#38bdf8", name: bestDiff.name, sub: `${(bestDiff.pf - bestDiff.pa) >= 0 ? '+' : ''}${bestDiff.pf - bestDiff.pa}点` }];
+  if (showRate && brk) awards.push({ label: "ブレイク賞", col: "#a78bfa", name: brk.name, sub: `${(cachedRatings.curDelta[brk.name] ?? 0) >= 0 ? '+' : ''}${(cachedRatings.curDelta[brk.name] ?? 0).toFixed(2)}` });
+  const cW = (contentW - 16 * (awards.length - 1)) / awards.length;
+  awards.forEach((aw, i) => {
+    const cx = padX + i * (cW + 16); drawRoundedRect(ctx, cx, y, cW, awardsH - 8, 14);
+    ctx.fillStyle = "rgba(11,19,43,0.75)"; ctx.fill(); ctx.strokeStyle = aw.col; ctx.lineWidth = 2; ctx.stroke();
+    ctx.font = `800 18px ${fontBase}`; ctx.fillStyle = aw.col; ctx.fillText(aw.label, cx + cW / 2, y + 28);
+    ctx.font = `800 28px ${fontBase}`; ctx.fillStyle = "#fff"; ctx.fillText(aw.name, cx + cW / 2, y + 66);
+    ctx.font = `700 18px ${fontBase}`; ctx.fillStyle = "#e2e8f0"; ctx.fillText(aw.sub, cx + cW / 2, y + 98);
+  });
+  y += awardsH + secGap;
+
+  const drawTitle = (t) => { ctx.textAlign = "left"; ctx.fillStyle = "#facc15"; ctx.fillRect(padX, y + 6, 6, 24); ctx.font = `800 24px ${fontBase}`; ctx.fillText(t, padX + 16, y + 19); y += secTitleH; };
+  drawTitle(showRate ? "個人成績＆当日レート変動" : "個人成績ランキング");
+  ctx.fillStyle = "rgba(11,19,43,0.76)"; ctx.fillRect(padX, y, contentW, pTableH); ctx.fillStyle = "rgba(2,132,199,0.34)"; ctx.fillRect(padX, y, contentW, thH);
+  const pCols = [80, 260, 140, 140, 140, contentW - 760]; let x = padX; ctx.font = `800 19px ${fontBase}`; ctx.fillStyle = "#facc15";
+  ["順位", "選手", "勝-負", "勝率", "得失点", showRate ? "現在R(変動)" : "平均得点"].forEach((h, i) => { ctx.textAlign = i === 1 ? "left" : "center"; ctx.fillText(h, i === 1 ? x + 14 : x + pCols[i] / 2, y + thH / 2); x += pCols[i]; });
+  pList.forEach((p, idx) => {
+    const ry = y + thH + idx * rowH; if (idx % 2 === 1) { ctx.fillStyle = "rgba(56,189,248,0.06)"; ctx.fillRect(padX, ry, contentW, rowH); }
+    const d = p.pf - p.pa, curR = cachedRatings.ratings[p.name] ?? DEFAULT_RATING, dR = cachedRatings.curDelta[p.name] ?? 0;
+    let cx = padX; ctx.font = `700 20px ${fontBase}`;
+    [String(idx + 1), p.name, `${p.wins}-${p.losses}`, `${Math.round((p.wins / p.games) * 100)}%`, d > 0 ? `+${d}` : String(d), showRate ? `${curR.toFixed(2)} (${dR >= 0 ? '+' : ''}${dR.toFixed(2)})` : (p.pf / p.games).toFixed(1)].forEach((v, i) => { ctx.textAlign = i === 1 ? "left" : "center"; ctx.fillStyle = i === 4 ? (d > 0 ? "#86efac" : (d < 0 ? "#fca5a5" : "#fff")) : "#fff"; ctx.fillText(v, i === 1 ? cx + 14 : cx + pCols[i] / 2, ry + rowH / 2); cx += pCols[i]; });
+  });
+  y += pTableH + secGap;
+
+  drawTitle(`当日ベストペア（TOP ${topPairs.length}）`);
+  ctx.fillStyle = "rgba(11,19,43,0.76)"; ctx.fillRect(padX, y, contentW, prTableH); ctx.fillStyle = "rgba(2,132,199,0.34)"; ctx.fillRect(padX, y, contentW, thH);
+  const prCols = [85, 420, 150, 150, contentW - 805]; let px = padX; ctx.font = `800 19px ${fontBase}`; ctx.fillStyle = "#facc15";
+  ["順位", "ペア", "勝-負", "勝率", "得失点差"].forEach((h, i) => { ctx.textAlign = i === 1 ? "left" : "center"; ctx.fillText(h, i === 1 ? px + 14 : px + prCols[i] / 2, y + thH / 2); px += prCols[i]; });
+  topPairs.forEach((pr, idx) => {
+    const ry = y + thH + idx * rowH, d = pr.pf - pr.pa; let cx = padX; ctx.font = `700 20px ${fontBase}`;
+    [String(idx + 1), pr.pair, `${pr.wins}-${pr.losses}`, `${Math.round((pr.wins / pr.games) * 100)}%`, d > 0 ? `+${d}` : String(d)].forEach((v, i) => { ctx.textAlign = i === 1 ? "left" : "center"; ctx.fillStyle = i === 4 ? (d > 0 ? "#86efac" : "#fca5a5") : "#fff"; ctx.fillText(v, i === 1 ? cx + 14 : cx + prCols[i] / 2, ry + rowH / 2); cx += prCols[i]; });
+  });
+  y += prTableH;
+  if (includeMatches && completedMatches.length) {
+    y += secGap; drawTitle(`全試合スコア一覧（${completedMatches.length}試合）`); const mW = (contentW - 16) / 2;
+    completedMatches.forEach((m, idx) => {
+      const mx = padX + (idx % 2) * (mW + 16), my = y + Math.floor(idx / 2) * 86;
+      drawRoundedRect(ctx, mx, my, mW, 74, 10); ctx.fillStyle = "rgba(11,19,43,0.72)"; ctx.fill(); ctx.strokeStyle = "rgba(58,80,107,0.75)"; ctx.stroke();
+      ctx.textAlign = "left"; ctx.font = `700 13px ${fontBase}`; ctx.fillStyle = "#38bdf8"; ctx.fillText(`R${m.r} ${m.court}`, mx + 12, my + 18);
+      ctx.textAlign = "center"; ctx.font = `700 17px ${fontBase}`; ctx.fillStyle = "#fff"; ctx.fillText(`${m.p1[0]}・${m.p1[1]}  ${m.s1} - ${m.s2}  ${m.p2[0]}・${m.p2[1]}`, mx + mW / 2, my + 48);
+    });
+  }
+  return canvas.toDataURL("image/png");
+}
+
+function generateScheduleImage() {
+  const courts = cur().config.courts, numCourts = courts.length, hasRest = cur().schedule.some(it => it.rest && it.rest.length > 0);
+  const isNum = isCurNumberMode(), isTeam = isCurTeamMode(), showCh = !!appState.showChallenge && !isNum;
+  const padX = 44, colRoundW = 155, colCourtW = numCourts <= 2 ? 450 : (numCourts <= 4 ? 380 : 340), colRestW = hasRest ? 290 : 0;
+  const tableW = colRoundW + numCourts * colCourtW + colRestW, W = tableW + padX * 2, fontBase = '"Hiragino Kaku Gothic ProN", "Noto Sans JP", Meiryo, sans-serif';
+  const mCtx = document.createElement("canvas").getContext("2d"); mCtx.font = `700 20px ${fontBase}`;
+  const rowHeights = cur().schedule.map(it => {
+    let h = showCh && it.matches.some(m => getChallengeInfo(m.p1, m.p2)) ? 76 : 64;
+    if (hasRest && it.rest && it.rest.length) h = Math.max(h, wrapTextLines(mCtx, it.rest.join("・"), colRestW - 24).length * 26 + 22);
+    return h;
+  });
+  const headerH = 185, thH = 60, bodyH = rowHeights.reduce((a, b) => a + b, 0), H = headerH + thH + bodyH + 44;
+  const canvas = document.createElement("canvas"); canvas.width = W; canvas.height = H;
+  const ctx = canvas.getContext("2d"); drawSportyBackground(ctx, W, H);
+  ctx.textAlign = "center"; ctx.textBaseline = "middle";
+  ctx.font = `800 40px ${fontBase}`; ctx.fillStyle = "#facc15";
+  const mTag = isTeam ? " [紅白戦]" : (cur().config.mode === "rating" ? " [実力拮抗]" : "");
+  ctx.fillText(`${cur().config.title}（全${cur().schedule.length}R）${mTag}`, W / 2, 62);
+  ctx.font = `700 20px ${fontBase}`; ctx.fillStyle = "#e2e8f0";
+  ctx.fillText(`${cur().date} ｜ ${getCurMatchPts()}点マッチ ｜ 参加(${cur().config.players.length}名)：${isNum ? `1番〜${cur().config.players.length}番` : cur().config.players.join("、")}`, W / 2, 124);
+
+  const tX = padX, tY = headerH, tH = thH + bodyH;
+  ctx.fillStyle = "rgba(11,19,43,0.74)"; ctx.fillRect(tX, tY, tableW, tH); ctx.fillStyle = "rgba(2,132,199,0.32)"; ctx.fillRect(tX, tY, tableW, thH);
+  const colXs = [tX, tX + colRoundW]; for (let c = 0; c < numCourts; c++) colXs.push(colXs[colXs.length - 1] + colCourtW); if (hasRest) colXs.push(colXs[colXs.length - 1] + colRestW);
+  ctx.font = `800 23px ${fontBase}`; ctx.fillStyle = "#facc15"; ctx.fillText("ラウンド", tX + colRoundW / 2, tY + thH / 2);
+  for (let c = 0; c < numCourts; c++) ctx.fillText(courts[c], colXs[1 + c] + colCourtW / 2, tY + thH / 2);
+  if (hasRest) ctx.fillText("休憩", colXs[1 + numCourts] + colRestW / 2, tY + thH / 2);
+
+  let curY = tY + thH;
+  cur().schedule.forEach((item, idx) => {
+    const rH = rowHeights[idx]; if (idx % 2 === 1) { ctx.fillStyle = "rgba(56,189,248,0.07)"; ctx.fillRect(tX, curY, tableW, rH); }
+    ctx.font = `700 22px ${fontBase}`; ctx.fillStyle = "#fff"; ctx.fillText(`第${item.r}R`, tX + colRoundW / 2, curY + rH / 2);
+    const placedCols = new Set();
+    item.matches.forEach(m => {
+      const cIdx = courts.indexOf(m.court); if (cIdx < 0) return; placedCols.add(cIdx);
+      const cx = colXs[1 + cIdx] + colCourtW / 2, ch = showCh ? getChallengeInfo(m.p1, m.p2) : null, cy = ch ? (curY + rH / 2 - 11) : (curY + rH / 2);
+      const txt = `${isTeam ? "[紅]" : ""}${m.p1[0]}・${m.p1[1]}  vs  ${isTeam ? "[白]" : ""}${m.p2[0]}・${m.p2[1]}`;
+      let fs = isNum ? 26 : 22; ctx.font = `700 ${fs}px ${fontBase}`;
+      while (ctx.measureText(txt).width > colCourtW - 22 && fs > 13) { fs--; ctx.font = `700 ${fs}px ${fontBase}`; }
+      ctx.fillStyle = "#fff"; ctx.fillText(txt, cx, cy);
+      if (ch) { ctx.font = `italic 800 13px ${fontBase}`; ctx.fillStyle = ch.level === 3 ? "#fda4af" : (ch.level === 2 ? "#fde68a" : "#7dd3fc"); ctx.fillText(`${ch.label} ${ch.stars}`, cx, curY + rH - 16); }
+    });
+    for (let c = 0; c < numCourts; c++) if (!placedCols.has(c)) { ctx.font = `700 20px ${fontBase}`; ctx.fillStyle = "#64748b"; ctx.fillText("—", colXs[1 + c] + colCourtW / 2, curY + rH / 2); }
+    if (hasRest) {
+      const rx = colXs[1 + numCourts] + colRestW / 2, lines = wrapTextLines(ctx, (item.rest && item.rest.length) ? item.rest.join("・") : "なし", colRestW - 24);
+      ctx.font = `700 20px ${fontBase}`; ctx.fillStyle = "#cbd5e1"; const sy = curY + rH / 2 - ((lines.length - 1) * 26) / 2;
+      lines.forEach((ln, li) => ctx.fillText(ln, rx, sy + li * 26));
+    }
+    ctx.strokeStyle = "rgba(148,163,184,0.45)"; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(tX, curY); ctx.lineTo(tX + tableW, curY); ctx.stroke();
+    curY += rH;
+  });
+  ctx.strokeRect(tX, tY, tableW, tH);
+  for (let i = 1; i < colXs.length - 1; i++) { ctx.beginPath(); ctx.moveTo(colXs[i], tY); ctx.lineTo(colXs[i], tY + tH); ctx.stroke(); }
+  return canvas.toDataURL("image/png");
+}
+
+document.getElementById("chkReportIncludeMatches").onchange = (e) => { appState.reportIncludeMatches = e.target.checked; saveState(); };
+document.getElementById("btnSaveReportImage").onclick = () => {
+  try {
+    const url = generateResultReportImage();
+    document.getElementById("reportImgPreview").src = url; document.getElementById("reportImgPreviewWrap").style.display = "block";
+    const a = document.createElement("a"); a.href = url; a.download = `badminton_report_${cur().date || todayStr()}.png`; a.click();
+    showToast("結果レポート画像を作成しました！");
+  } catch (e) { alert(e.message); }
+};
+document.getElementById("chkChallengeEffect").onchange = (e) => { appState.showChallenge = e.target.checked; saveState(); renderRounds(); renderExportPreview(); };
+document.getElementById("btnSaveImage").onclick = () => {
+  const url = generateScheduleImage();
+  document.getElementById("scheduleImgPreview").src = url; document.getElementById("imgPreviewWrap").style.display = "block";
+  const a = document.createElement("a"); a.href = url; a.download = `badminton_schedule_${cur().date || todayStr()}.png`; a.click();
+  showToast("対戦表画像を作成しました！");
+};
+
+function buildScheduleShareText() {
+  const isTeam = isCurTeamMode();
+  const lines = [`【${cur().config.title}】${cur().date}（${getCurMatchPts()}点マッチ）`, ""];
+  cur().schedule.forEach(item => {
+    lines.push(`■ 第${item.r}ラウンド`);
+    item.matches.forEach(m => lines.push(`  ${m.court}: ${isTeam ? "[紅]" : ""}${m.p1[0]}・${m.p1[1]} vs ${isTeam ? "[白]" : ""}${m.p2[0]}・${m.p2[1]}`));
+    if (item.rest && item.rest.length) lines.push(`  休憩: ${item.rest.join("・")}`);
+  });
+  return lines.join("\n");
+}
+function buildGeminiText() {
+  const sessions = getSessionsForScope(exportScope);
+  if (!sessions.length) return "※分析対象データがありません。";
+  const lines = ["以下のバドミントンダブルスの試合結果を詳細に分析してください。", "開催日,タイトル,ルール,ラウンド,コート,ペアA,スコアA,スコアB,ペアB"];
+  sessions.forEach(sess => sess.schedule.forEach(item => item.matches.forEach((m, idx) => {
+    const sc = getScoreOf(sess, matchId(item.r, idx));
+    if (exportScope === "all" && sc.s1 === "" && sc.s2 === "") return;
+    lines.push(`${sess.date || ""},${sess.config.title},${sess.config.matchPoints === 15 ? 15 : 21}点,R${item.r},${m.court},${m.p1[0]}・${m.p1[1]},${sc.s1 || "-"},${sc.s2 || "-"},${m.p2[0]}・${m.p2[1]}`);
+  })));
+  return lines.join("\n");
+}
+function renderExportPreview() {
+  document.getElementById("scheduleTextPreview").value = buildScheduleShareText();
+  document.getElementById("exportPreview").value = buildGeminiText();
+}
+async function copyText(text, taId, msg) {
+  try { if (navigator.clipboard) { await navigator.clipboard.writeText(text); showToast(msg); return; } } catch (e) {}
+  const ta = document.getElementById(taId); ta.focus(); ta.select();
+  try { document.execCommand("copy"); showToast(msg); } catch (e) { showToast("枠内を長押しコピーしてください"); }
+}
+document.getElementById("btnCopyScheduleText").onclick = () => copyText(buildScheduleShareText(), "scheduleTextPreview", "対戦表テキストをコピーしました！");
+document.getElementById("btnCopyGemini").onclick = () => copyText(buildGeminiText(), "exportPreview", "Gemini分析用データをコピーしました！");
+document.querySelectorAll("[data-exscope]").forEach(b => { b.onclick = () => { document.querySelectorAll("[data-exscope]").forEach(x => x.classList.remove("active")); b.classList.add("active"); exportScope = b.dataset.exscope; renderExportPreview(); }; });
+
+document.getElementById("btnDownloadCsv").onclick = () => {
+  const sessions = getSessionsForScope(exportScope); if (!sessions.length) { alert("出力データがありません。"); return; }
+  const rows = ["開催日,タイトル,ルール,ラウンド,コート,ペアA,スコアA,スコアB,ペアB"];
+  sessions.forEach(sess => sess.schedule.forEach(item => item.matches.forEach((m, idx) => {
+    const sc = getScoreOf(sess, matchId(item.r, idx));
+    rows.push(`${sess.date || ""},${sess.config.title},${sess.config.matchPoints === 15 ? 15 : 21}点,R${item.r},${m.court},${m.p1[0]}・${m.p1[1]},${sc.s1},${sc.s2},${m.p2[0]}・${m.p2[1]}`);
+  })));
+  const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob(["\uFEFF" + rows.join("\n")], { type: "text/csv;charset=utf-8;" }));
+  a.download = `badminton_${exportScope}_${todayStr()}.csv`; a.click(); showToast("CSVファイルを保存しました");
+};
+document.getElementById("btnBackupJson").onclick = () => {
+  const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([JSON.stringify(appState, null, 2)], { type: "application/json" }));
+  a.download = `badminton_backup_v9_${todayStr()}.json`; a.click(); showToast("バックアップを保存しました");
+};
+document.getElementById("btnRestoreJson").onclick = () => document.getElementById("inpRestoreFile").click();
+document.getElementById("inpRestoreFile").onchange = (e) => {
+  const file = e.target.files[0]; if (!file) return;
+  const r = new FileReader();
+  r.onload = () => {
+    try {
+      const p = JSON.parse(r.result);
+      if (!p.current || !Array.isArray(p.history)) throw new Error("形式が正しくありません。");
+      if (confirm("バックアップを復元しますか？")) { appState = ensureV9Fields(p); saveState(); renderAll(); showToast("復元しました！"); }
+    } catch (err) { alert("復元エラー: " + err.message); }
+    e.target.value = "";
+  };
+  r.readAsText(file);
+};
+document.getElementById("btnResetScores").onclick = () => {
+  if (confirm("現在表示中のスコアをすべて削除しますか？")) { cur().scores = {}; saveState(); renderAll(); showToast("スコアをリセットしました"); }
+};
+
+document.querySelectorAll(".tab-btn").forEach(btn => {
+  btn.onclick = () => {
+    document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
+    document.querySelectorAll(".tab-panel").forEach(p => p.classList.remove("active"));
+    btn.classList.add("active");
+    document.getElementById(`tab-${btn.dataset.tab}`).classList.add("active");
+    if (btn.dataset.tab === "stats") renderStats();
+    if (btn.dataset.tab === "history") renderHistoryTab();
+    if (btn.dataset.tab === "export") { renderFeeCalculator(); renderExportPreview(); }
+    if (btn.dataset.tab === "setup") { renderMasterAndAttendees(); renderVerifySummary(); }
+  };
+});
+
+loadState();
+renderAll();
+</script>
+</body>
+</html>
