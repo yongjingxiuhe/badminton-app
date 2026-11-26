@@ -233,6 +233,12 @@
   .match-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 9px; gap: 6px; }
   .match-actions { display: flex; align-items: center; gap: 5px; }
   .edit-match-btn { background: rgba(56, 189, 248, 0.14); color: var(--accent); border: 1px solid rgba(56, 189, 248, 0.45); border-radius: 6px; padding: 3px 8px; font-size: 11px; font-weight: 700; cursor: pointer; }
+.pred-btn {
+    border-radius: 6px; padding: 3px 8px; font-size: 11px; font-weight: 800; cursor: pointer;
+    border: 1px solid var(--border); background: var(--surface-2); color: var(--text);
+  }
+  .pred-btn.pred-red { background: rgba(220, 38, 38, 0.25); color: #fca5a5; border-color: rgba(239, 68, 68, 0.65); }
+  .pred-btn.pred-white { background: rgba(241, 245, 249, 0.18); color: #f8fafc; border-color: rgba(226, 232, 240, 0.65); }
   .court-badge { font-size: 12px; font-weight: 800; padding: 3px 10px; border-radius: 6px; background: rgba(56, 189, 248, 0.16); color: var(--accent); border: 1px solid rgba(56, 189, 248, 0.35); }
   .court-badge.alt { background: rgba(250, 204, 21, 0.14); color: var(--gold); border-color: rgba(250, 204, 21, 0.35); }
   .rate-diff-badge { font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: 6px; background: var(--purple-bg); color: #ddd6fe; border: 1px solid rgba(167, 139, 250, 0.35); }
@@ -329,6 +335,7 @@
   .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
   body.hide-ratings .rating-only { display: none !important; }
 </style>
+<script src="https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js"></script>
 </head>
 <body>
 
@@ -725,7 +732,36 @@
         <img id="reportImgPreview" alt="試合結果レポート画像">
       </div>
     </div>
-
+<!-- NEW: 結果発表PPTX自動出力 -->
+    <div class="card-box" style="border-color: rgba(239, 68, 68, 0.55);">
+      <h2>結果発表スライド自動出力（PowerPoint）</h2>
+      <p class="note">試合結果から表紙・参加者・各試合・中間発表・最終結果・MVP・特別賞・個人ランキングのPPTXを自動作成します。</p>
+      <div class="form-group">
+        <label class="field-label" for="pptxSubTitle">サブタイトル・会場・送別メッセージ（任意）</label>
+        <input type="text" id="pptxSubTitle" placeholder="例：＠Luohu / 日本でもお元気で！">
+      </div>
+      <label class="toggle-row">
+        <span>写真差し込み用スライド（集合写真・余興等）を含める</span>
+        <input type="checkbox" id="chkPptxPhotoSlots" checked>
+      </label>
+      <label class="toggle-row">
+        <span>中間発表スライド（4試合ごと）を自動挿入する</span>
+        <input type="checkbox" id="chkPptxMidSummary" checked>
+      </label>
+      <label class="toggle-row">
+        <span>特別賞スライド（ベストペア・接戦賞等）を含める</span>
+        <input type="checkbox" id="chkPptxSpecialAwards" checked>
+      </label>
+      <label class="toggle-row">
+        <span>各試合にレート事前予想＆的中率を表示する</span>
+        <input type="checkbox" id="chkPptxShowPred" checked>
+</label>
+      <label class="toggle-row">
+        <span>各試合を3枚構成（名前→予想→結果）で出力する</span>
+        <input type="checkbox" id="chkPptxStepByStep" checked>
+      </label>
+      <button class="action-btn btn-red" id="btnExportPptx">結果発表PPTXを作成・ダウンロード</button>
+    </div>
     <div class="card-box">
       <h2>対戦表の共有（画像PNG・テキストコピー）</h2>
       <label class="toggle-row">
@@ -1812,19 +1848,6 @@ function renderRounds() {
   });
 }
 
-function createNumberMatchCard(r, cIdx, m) {
-  const card = document.createElement("div");
-  card.className = "match-card";
-  card.innerHTML = `
-    <div class="match-top" style="margin-bottom:7px;">
-      <span class="court-badge ${cIdx % 2 === 1 ? 'alt' : ''}">${m.court}</span>
-      <button class="edit-match-btn" data-edit="${r}_${cIdx}">編集</button>
-    </div>
-    <div class="number-match-line"><span>${m.p1[0]}・${m.p1[1]}</span><span class="vs-lbl">vs</span><span>${m.p2[0]}・${m.p2[1]}</span></div>`;
-  card.querySelector(`[data-edit="${r}_${cIdx}"]`).onclick = () => openEditMatchModal(r, cIdx);
-  return card;
-}
-
 function createMatchCard(r, cIdx, m) {
   const id = matchId(r, cIdx), sc = getScoreOf(cur(), id), valid = isMatchValidOf(cur(), id);
   const n1 = Number(sc.s1), n2 = Number(sc.s2), w1 = valid && n1 > n2, w2 = valid && n2 > n1;
@@ -1836,6 +1859,14 @@ function createMatchCard(r, cIdx, m) {
   const tag1 = isTeam ? '<span class="team-tag red">紅組</span>' : '';
   const tag2 = isTeam ? '<span class="team-tag white">白組</span>' : '';
 
+  // ★追加：紅白戦の勝利予想ボタンを作成
+  if (isTeam && !m.pred) {
+    m.pred = Math.abs(r1 - r2) >= 0.05 ? (r1 > r2 ? 1 : 2) : (Math.random() < 0.5 ? 1 : 2);
+  }
+  const predBtnHtml = isTeam
+    ? `<button class="pred-btn ${m.pred === 1 ? 'pred-red' : 'pred-white'}" data-pred="${r}_${cIdx}">予想:${m.pred === 1 ? '紅' : '白'}</button>`
+    : '';
+
   const card = document.createElement("div");
   card.className = "match-card" + (valid ? " completed" : "");
   card.innerHTML = `
@@ -1845,6 +1876,7 @@ function createMatchCard(r, cIdx, m) {
         <span class="rate-diff-badge rating-only">R合計 ${r1.toFixed(1)} vs ${r2.toFixed(1)}（差${Math.abs(r1 - r2).toFixed(2)}）</span>
       </div>
       <div class="match-actions">
+        ${predBtnHtml}
         <button class="edit-match-btn" data-edit="${r}_${cIdx}">編集</button>
         <button class="clear-btn" data-clear="${id}">クリア</button>
       </div>
@@ -1867,6 +1899,16 @@ function createMatchCard(r, cIdx, m) {
         <button class="btn-step" data-step="${id}" data-side="s2" data-delta="1">＋</button>
       </div>
     </div>`;
+
+  // ★追加：予想ボタンを押したときに「紅 ⇔ 白」を切り替える処理
+  const predBtn = card.querySelector(`[data-pred="${r}_${cIdx}"]`);
+  if (predBtn) {
+    predBtn.onclick = () => {
+      m.pred = (m.pred === 1) ? 2 : 1;
+      saveState();
+      updateUIKeepScroll();
+    };
+  }
 
   card.querySelector(`[data-edit="${r}_${cIdx}"]`).onclick = () => openEditMatchModal(r, cIdx);
   card.querySelector(`[data-clear="${id}"]`).onclick = () => { delete cur().scores[id]; saveState(); updateUIKeepScroll(); };
@@ -1892,7 +1934,6 @@ function createMatchCard(r, cIdx, m) {
   });
   return card;
 }
-
 function updateUIKeepScroll() {
   const y = window.scrollY;
   refreshRatingsCache();
@@ -2437,6 +2478,7 @@ document.getElementById("btnGenerate").onclick = () => {
       mode: selectedGenMode, teamSubMode: selectedTeamSubMode,
       teams: deepClone(appState.draftTeams), currentRatingsMap: cachedRatings.ratings
     });
+if (selectedGenMode === "team") assignDefaultPredictions(newSchedule, cachedRatings.ratings);
     if (selectedGenMode !== "number") appState.lastAttendees = [...players];
     appState.current = {
       id: genId(), date,
@@ -2945,7 +2987,758 @@ document.querySelectorAll(".tab-btn").forEach(btn => {
     if (btn.dataset.tab === "setup") { renderMasterAndAttendees(); renderVerifySummary(); }
   };
 });
+// ==========================================
+// 勝利予想 自動セットヘルパー
+// ==========================================
+function assignDefaultPredictions(schedule, ratingsMap) {
+  const getR = (p) => (ratingsMap && ratingsMap[p] !== undefined) ? ratingsMap[p] : DEFAULT_RATING;
+  (schedule || []).forEach(item => {
+    (item.matches || []).forEach(m => {
+      if (m.pred === 1 || m.pred === 2) return;
+      const r1 = getR(m.p1[0]) + getR(m.p1[1]);
+      const r2 = getR(m.p2[0]) + getR(m.p2[1]);
+      m.pred = Math.abs(r1 - r2) >= 0.05 ? (r1 > r2 ? 1 : 2) : (Math.random() < 0.5 ? 1 : 2);
+    });
+  });
+}
 
+// ==========================================
+// 紅白戦・結果発表 PPTX 自動出力（ダーク・スポーツ中継風）
+// ==========================================
+async function generateBadmintonPptx() {
+  if (typeof PptxGenJS === "undefined") {
+    alert("PowerPoint生成ライブラリの読み込みに失敗しました。インターネット接続を確認してページを再読み込みしてください。");
+    return;
+  }
+  if (isCurNumberMode()) {
+    alert("番号のみモードでは結果発表PPTXを作成できません。");
+    return;
+  }
+
+  refreshRatingsCache();
+  const sess = cur();
+  const cfg = sess.config;
+  const isTeam = isCurTeamMode();
+  const showRate = !appState.hideRatings;
+  const subTitle = (document.getElementById("pptxSubTitle")?.value || "").trim();
+  const optPhoto = !!document.getElementById("chkPptxPhotoSlots")?.checked;
+  const optMid = !!document.getElementById("chkPptxMidSummary")?.checked;
+  const optAwards = !!document.getElementById("chkPptxSpecialAwards")?.checked;
+  const optPred = !!document.getElementById("chkPptxShowPred")?.checked;
+const optStep = !!document.getElementById("chkPptxStepByStep")?.checked;
+
+  // 未設定の予想があれば自動補完して保存
+  if (isTeam) {
+    assignDefaultPredictions(sess.schedule, cachedRatings.ratings);
+    saveState();
+  }
+
+  const { pMap, pairMap, totalValidMatches } = aggregateStats([sess]);
+  if (totalValidMatches === 0) {
+    alert("スコアが入力された試合がまだありません。");
+    return;
+  }
+
+  const pptx = new PptxGenJS();
+  pptx.layout = "LAYOUT_16x9";
+  pptx.author = "Badminton Manager";
+  pptx.title = `${cfg.title} 結果発表`;
+
+  const F_JP = "Meiryo";
+  const F_NUM = "Arial Black"; // 数字・英語用の極太スポーツフォント
+  const C = {
+    bg: "070B19",         // より深いダークネイビー
+    surface: "121A2F",
+    surface2: "1B2642",
+    border: "2E3F66",
+    text: "F8FAFC",
+    muted: "8E9EB8",
+    dimText: "64748B",    // 敗者側の控えめな文字色
+    gold: "FACC15",
+    accent: "38BDF8",
+    red: "E11D48",        // ネオン寄りの鮮やかなクリムゾンレッド
+    redDark: "2D0F1B",
+    redDim: "1B0E17",
+    redSoft: "FDA4AF",
+    white: "F1F5F9",
+    whiteDark: "1D283D",
+    whiteDim: "131B2C",
+    green: "22C55E",
+    wm: "111930"          // 背景透かし文字用（極薄）
+  };
+
+  // スポーツ中継風の背景・斜めアクセント・透かし文字を描画する共通ベース
+  const addSportSlide = (headerTitle, pageSub, watermarkText = "") => {
+    const s = pptx.addSlide();
+    s.background = { color: C.bg };
+
+    // 右下・左上の斜めアクセント帯（スポーツ中継風スラッシュ）
+    s.addShape(pptx.ShapeType.parallelogram, {
+      x: 8.6, y: 4.9, w: 1.8, h: 0.9, fill: { color: isTeam ? C.red : C.accent, transparency: 78 }, line: { transparency: 100 }
+    });
+    s.addShape(pptx.ShapeType.parallelogram, {
+      x: 9.1, y: 4.9, w: 1.2, h: 0.9, fill: { color: C.gold, transparency: 82 }, line: { transparency: 100 }
+    });
+
+    // 背景の超特大・極薄透かし文字
+    if (watermarkText) {
+      s.addText(watermarkText, {
+        x: -0.5, y: 1.5, w: 11.0, h: 2.8,
+        fontSize: 108, bold: true, color: C.wm, fontFace: F_NUM,
+        align: "center", valign: "middle"
+      });
+    }
+
+    if (headerTitle) {
+      // 上部ヘッダーバー＋斜め紅白アクセント
+      s.addShape(pptx.ShapeType.rect, { x: 0, y: 0, w: 10, h: 0.64, fill: { color: C.surface } });
+      s.addShape(pptx.ShapeType.parallelogram, { x: -0.15, y: 0, w: 0.45, h: 0.64, fill: { color: isTeam ? C.red : C.accent } });
+      s.addShape(pptx.ShapeType.rect, { x: 0, y: 0.64, w: 10, h: 0.03, fill: { color: C.gold } });
+
+      s.addText(headerTitle, {
+        x: 0.42, y: 0.08, w: 6.6, h: 0.48,
+        fontSize: 20, bold: true, color: C.gold, fontFace: F_JP, valign: "middle"
+      });
+      if (pageSub) {
+        s.addText(pageSub, {
+          x: 7.0, y: 0.1, w: 2.7, h: 0.44,
+          fontSize: 11, bold: true, color: C.muted, fontFace: F_JP, align: "right", valign: "middle"
+        });
+      }
+    }
+    return s;
+  };
+
+  // 紅組 vs 白組 勢力ゲージ（綱引きバー）描画ヘルパー
+  const drawTugGauge = (s, x, y, w, h, redVal, whiteVal) => {
+    const total = Math.max(1, redVal + whiteVal);
+    const redW = Math.max(0.4, Math.min(w - 0.4, w * (redVal / total)));
+    const whiteW = w - redW;
+
+    s.addShape(pptx.ShapeType.rect, { x, y, w: redW, h, fill: { color: C.red } });
+    s.addShape(pptx.ShapeType.rect, { x: x + redW, y, w: whiteW, h, fill: { color: "CBD5E1" } });
+    // 中央の区切りスラッシュ
+    s.addShape(pptx.ShapeType.parallelogram, { x: x + redW - 0.06, y: y - 0.04, w: 0.12, h: h + 0.08, fill: { color: C.gold } });
+
+    const rPct = Math.round((redVal / total) * 100);
+    const wPct = 100 - rPct;
+    s.addText(`RED ${rPct}%`, { x: x + 0.1, y, w: 1.5, h, fontSize: 10, bold: true, color: "FFFFFF", fontFace: F_NUM, valign: "middle" });
+    s.addText(`${wPct}% WHITE`, { x: x + w - 1.6, y, w: 1.5, h, fontSize: 10, bold: true, color: "0F172A", fontFace: F_NUM, align: "right", valign: "middle" });
+  };
+
+  const addPhotoPlaceholder = (title, guideText) => {
+    const s = addSportSlide(title, sess.date, "PHOTO");
+    s.addShape(pptx.ShapeType.roundRect, {
+      x: 0.7, y: 0.95, w: 8.6, h: 4.25,
+      fill: { color: C.surface, transparency: 25 },
+      line: { color: C.accent, width: 1.5, dashType: "dash" },
+      rectRadius: 0.12
+    });
+    s.addText(guideText, {
+      x: 1.0, y: 2.3, w: 8.0, h: 1.5,
+      fontSize: 18, bold: true, color: C.muted, fontFace: F_JP, align: "center", valign: "middle"
+    });
+  };
+
+  // ==========================================
+  // 1. 表紙スライド（スポーツ中継ポスター風）
+  // ==========================================
+  {
+    const s = pptx.addSlide();
+    s.background = { color: C.bg };
+
+    // 背景の大型斜めグラフィック（紅×白スラッシュ）
+    s.addShape(pptx.ShapeType.parallelogram, { x: -1.0, y: -0.5, w: 3.4, h: 6.6, fill: { color: C.red, transparency: 82 } });
+    s.addShape(pptx.ShapeType.parallelogram, { x: 7.8, y: -0.5, w: 3.4, h: 6.6, fill: { color: C.white, transparency: 90 } });
+    s.addText(isTeam ? "RED vs WHITE" : "BADMINTON", {
+      x: -0.5, y: 1.35, w: 11.0, h: 2.8,
+      fontSize: 96, bold: true, color: C.wm, fontFace: F_NUM, align: "center", valign: "middle"
+    });
+
+    // 上下ネオンライン
+    s.addShape(pptx.ShapeType.rect, { x: 0, y: 0, w: 5.0, h: 0.12, fill: { color: C.red } });
+    s.addShape(pptx.ShapeType.rect, { x: 5.0, y: 0, w: 5.0, h: 0.12, fill: { color: C.white } });
+    s.addShape(pptx.ShapeType.rect, { x: 0, y: 5.5, w: 10, h: 0.12, fill: { color: C.gold } });
+
+    // バッジ
+    s.addShape(pptx.ShapeType.parallelogram, {
+      x: 3.3, y: 0.85, w: 3.4, h: 0.5, fill: { color: isTeam ? C.red : C.accent }
+    });
+    s.addText(isTeam ? "OFFICIAL MATCH RESULTS" : "MATCH RESULTS", {
+      x: 3.3, y: 0.85, w: 3.4, h: 0.5,
+      fontSize: 13, bold: true, color: "FFFFFF", fontFace: F_NUM, align: "center", valign: "middle"
+    });
+
+    // メインタイトル
+    s.addText(cfg.title, {
+      x: 0.6, y: 1.6, w: 8.8, h: 1.3,
+      fontSize: 38, bold: true, color: C.gold, fontFace: F_JP, align: "center", valign: "middle"
+    });
+
+    if (subTitle) {
+      s.addText(subTitle, {
+        x: 0.8, y: 2.95, w: 8.4, h: 0.65,
+        fontSize: 20, bold: true, color: C.text, fontFace: F_JP, align: "center", valign: "middle"
+      });
+    }
+
+    // 下部メタ情報バー
+    s.addShape(pptx.ShapeType.roundRect, {
+      x: 1.5, y: 4.3, w: 7.0, h: 0.55,
+      fill: { color: C.surface }, line: { color: C.border, width: 1 }, rectRadius: 0.25
+    });
+    s.addText(`${sess.date}   ｜   PLAYERS: ${cfg.players.length}   ｜   MATCHES: ${totalValidMatches} (${getCurMatchPts()}pt)`, {
+      x: 1.5, y: 4.3, w: 7.0, h: 0.55,
+      fontSize: 13, bold: true, color: C.accent, fontFace: F_NUM, align: "center", valign: "middle"
+    });
+  }
+
+  // ==========================================
+  // 2. 写真差し込み用（集合写真）
+  // ==========================================
+  if (optPhoto) {
+    addPhotoPlaceholder("集合写真", "ここに集合写真・チーム写真を挿入してください\n（このガイド枠は削除してご利用ください）");
+  }
+
+  // ==========================================
+  // 3. 参加者一覧スライド
+  // ==========================================
+  {
+    const s = addSportSlide("参加者一覧（敬称略）", `TOTAL ${cfg.players.length} PLAYERS`, "ROSTER");
+    if (isTeam) {
+      const redList = cfg.teams?.red || [];
+      const whiteList = cfg.teams?.white || [];
+
+      const drawTeamPanel = (xPos, titleEn, titleJp, list, borderCol, bgCol, badgeCol, badgeTextCol) => {
+        s.addShape(pptx.ShapeType.roundRect, {
+          x: xPos, y: 0.88, w: 4.25, h: 4.38,
+          fill: { color: bgCol }, line: { color: borderCol, width: 2 }, rectRadius: 0.1
+        });
+        s.addShape(pptx.ShapeType.parallelogram, {
+          x: xPos + 0.18, y: 1.02, w: 3.88, h: 0.46, fill: { color: badgeCol }
+        });
+        s.addText(`${titleEn}  ${titleJp}（${list.length}名）`, {
+          x: xPos + 0.18, y: 1.02, w: 3.88, h: 0.46,
+          fontSize: 15, bold: true, color: badgeTextCol, fontFace: F_JP, align: "center", valign: "middle"
+        });
+
+        const cols = list.length > 14 ? 3 : 2;
+        const rows = Math.ceil(list.length / cols);
+        const cellW = 3.95 / cols;
+        const cellH = Math.min(0.46, 3.55 / Math.max(rows, 1));
+        const fontSz = list.length > 18 ? 11 : (list.length > 12 ? 12 : 14);
+
+        list.forEach((name, idx) => {
+          const r = Math.floor(idx / cols), c = idx % cols;
+          s.addText(name, {
+            x: xPos + 0.15 + c * cellW, y: 1.6 + r * cellH, w: cellW, h: cellH,
+            fontSize: fontSz, bold: true, color: C.text, fontFace: F_JP, align: "center", valign: "middle"
+          });
+        });
+      };
+
+      drawTeamPanel(0.35, "TEAM RED", "紅組", redList, C.red, C.redDark, C.red, "FFFFFF");
+      s.addText("VS", {
+        x: 4.55, y: 2.65, w: 0.9, h: 0.7,
+        fontSize: 28, bold: true, color: C.gold, fontFace: F_NUM, align: "center", valign: "middle"
+      });
+      drawTeamPanel(5.4, "TEAM WHITE", "白組", whiteList, "CBD5E1", C.whiteDark, C.white, "0F172A");
+    } else {
+      const cols = cfg.players.length > 18 ? 4 : 3;
+      const rows = Math.ceil(cfg.players.length / cols);
+      const cellW = 9.0 / cols, cellH = Math.min(0.55, 4.1 / Math.max(rows, 1));
+      cfg.players.forEach((name, idx) => {
+        const r = Math.floor(idx / cols), c = idx % cols;
+        s.addShape(pptx.ShapeType.roundRect, {
+          x: 0.5 + c * cellW + 0.06, y: 0.95 + r * cellH + 0.05,
+          w: cellW - 0.12, h: cellH - 0.1,
+          fill: { color: C.surface2 }, line: { color: C.border, width: 1 }, rectRadius: 0.08
+        });
+        s.addText(name, {
+          x: 0.5 + c * cellW + 0.06, y: 0.95 + r * cellH + 0.05,
+          w: cellW - 0.12, h: cellH - 0.1,
+          fontSize: 13, bold: true, color: C.text, fontFace: F_JP, align: "center", valign: "middle"
+        });
+      });
+    }
+  }
+
+  // ==========================================
+  // 4. 各試合スライド ＋ 中間発表スライド
+  // ==========================================
+  const roundSummaries = [];
+  let cumRedWins = 0, cumWhiteWins = 0;
+  let totalPredMatches = 0, totalPredHits = 0;
+
+  const addMidSummarySlide = (chunk, titleLabel) => {
+    const s = addSportSlide(titleLabel, `累計：紅 ${cumRedWins}勝 - 白 ${cumWhiteWins}勝`, "STANDINGS");
+    const cardW = (9.2 - 0.2 * (chunk.length - 1)) / Math.max(chunk.length, 1);
+
+    chunk.forEach((rs, idx) => {
+      const cx = 0.4 + idx * (cardW + 0.2);
+      const rWin = rs.rWins > rs.wWins, wWin = rs.wWins > rs.rWins;
+      const winCol = rWin ? C.red : (wWin ? C.white : C.surface2);
+      const winLbl = rWin ? "RED WIN" : (wWin ? "WHITE WIN" : "DRAW");
+      const winTxtCol = wWin ? "0F172A" : "FFFFFF";
+
+      s.addShape(pptx.ShapeType.roundRect, {
+        x: cx, y: 0.95, w: cardW, h: 2.95,
+        fill: { color: C.surface }, line: { color: rWin ? C.red : (wWin ? "CBD5E1" : C.border), width: 1.5 }, rectRadius: 0.12
+      });
+      s.addText(`ROUND ${rs.r}`, {
+        x: cx, y: 1.12, w: cardW, h: 0.38,
+        fontSize: 14, bold: true, color: C.gold, fontFace: F_NUM, align: "center"
+      });
+      s.addText(`${rs.rWins} - ${rs.wWins}`, {
+        x: cx, y: 1.65, w: cardW, h: 1.1,
+        fontSize: 38, bold: true, color: "FFFFFF", fontFace: F_NUM, align: "center", valign: "middle"
+      });
+      s.addShape(pptx.ShapeType.parallelogram, {
+        x: cx + 0.22, y: 3.12, w: cardW - 0.44, h: 0.48, fill: { color: winCol }
+      });
+      s.addText(winLbl, {
+        x: cx + 0.22, y: 3.12, w: cardW - 0.44, h: 0.48,
+        fontSize: 13, bold: true, color: winTxtCol, fontFace: F_NUM, align: "center", valign: "middle"
+      });
+    });
+
+    // 累計スコア＆勢力ゲージ
+    s.addText(`TOTAL SCORE  ：  紅組 ${cumRedWins}勝   -   ${cumWhiteWins}勝 白組`, {
+      x: 0.6, y: 4.12, w: 8.8, h: 0.42,
+      fontSize: 16, bold: true, color: C.gold, fontFace: F_JP, align: "center", valign: "middle"
+    });
+    drawTugGauge(s, 0.8, 4.62, 8.4, 0.42, cumRedWins, cumWhiteWins);
+  };
+
+  const playedRounds = sess.schedule.filter(item =>
+    item.matches.some((_, idx) => isMatchValidOf(sess, matchId(item.r, idx)))
+  );
+
+ playedRounds.forEach((item, rIdx) => {
+    const validMatches = [];
+    let rWins = 0, wWins = 0, predTotal = 0, predHits = 0;
+
+    item.matches.forEach((m, idx) => {
+      const id = matchId(item.r, idx);
+      if (!isMatchValidOf(sess, id)) return;
+      const sc = getScoreOf(sess, id);
+      const s1 = Number(sc.s1), s2 = Number(sc.s2);
+      if (isTeam) {
+        if (s1 > s2) rWins++;
+        else if (s2 > s1) wWins++;
+      }
+      const predSide = (m.pred === 1 || m.pred === 2) ? m.pred : 0;
+      if (predSide && s1 !== s2) {
+        predTotal++;
+        totalPredMatches++;
+        if ((predSide === 1 && s1 > s2) || (predSide === 2 && s2 > s1)) {
+          predHits++;
+          totalPredHits++;
+        }
+      }
+      validMatches.push({ court: m.court, p1: m.p1, p2: m.p2, s1, s2, predSide });
+    });
+
+    cumRedWins += rWins;
+    cumWhiteWins += wWins;
+    roundSummaries.push({ r: item.r, rWins, wWins });
+
+    // 出力するステップを決定（3枚構成OFFなら結果のみ、予想OFFなら名前→結果の2枚）
+    const stages = !optStep
+      ? ["result"]
+      : (optPred && predTotal > 0 ? ["matchup", "predict", "result"] : ["matchup", "result"]);
+
+    const n = validMatches.length;
+    const cols = n <= 3 ? 1 : 2;
+    const rows = Math.ceil(n / cols);
+    const gapX = 0.22, gapY = 0.15;
+    const startX = cols === 1 ? 0.75 : 0.35;
+    const totalW = cols === 1 ? 8.5 : 9.3;
+    const cardW = (totalW - gapX * (cols - 1)) / cols;
+    // 3枚すべて同じ高さに固定し、スライド送り時のズレを防ぐ
+    const availH = (optPred && predTotal > 0) ? 4.22 : 4.58;
+    const cardH = Math.min(1.3, (availH - gapY * (rows - 1)) / rows);
+
+    stages.forEach((stage) => {
+      const isMatchup = stage === "matchup";
+      const isPredict = stage === "predict";
+      const isResult = stage === "result";
+
+      const slideTitle = isMatchup
+        ? `第${item.r}試合 対戦カード`
+        : (isPredict ? `第${item.r}試合 勝利予想` : `第${item.r}試合 結果`);
+      const subLbl = isMatchup
+        ? "MATCHUP"
+        : (isPredict ? "PREDICTION" : (isTeam ? `紅組 ${rWins}勝 - 白組 ${wWins}勝` : `${validMatches.length}試合`));
+
+      const s = addSportSlide(slideTitle, subLbl, `ROUND ${item.r}`);
+
+      validMatches.forEach((m, idx) => {
+        const col = idx % cols, row = Math.floor(idx / cols);
+        const x = startX + col * (cardW + gapX);
+        const y = 0.8 + row * (cardH + gapY);
+        const w1 = m.s1 > m.s2, w2 = m.s2 > m.s1;
+
+        // 外枠カード
+        s.addShape(pptx.ShapeType.roundRect, {
+          x, y, w: cardW, h: cardH,
+          fill: { color: C.surface }, line: { color: C.border, width: 1 }, rectRadius: 0.08
+        });
+
+        // コート名
+        s.addText(m.court, {
+          x: x + 0.12, y: y + 0.03, w: cardW - 0.24, h: 0.22,
+          fontSize: 9.5, bold: true, color: C.accent, fontFace: F_JP
+        });
+
+        const innerY = y + 0.27;
+        const innerH = cardH - 0.34;
+        const scoreW = cols === 1 ? 1.65 : 1.15;
+        const sideW = (cardW - scoreW - 0.24) / 2;
+        const nameFontSz = cols === 1 ? 14 : (n > 6 ? 10 : 11.5);
+
+        // --- 左（紅組 / ペア1）のスタイルと文言 ---
+        let p1Fill = isTeam ? C.redDark : C.surface2;
+        let p1Line = isTeam ? C.red : C.border;
+        let p1LineW = 1.2;
+        let p1TextCol = C.text;
+        let p1Sub = "";
+
+        if (isPredict && m.predSide === 1) {
+          p1Line = C.accent; p1LineW = 2.4; p1TextCol = C.accent; p1Sub = "\nWIN?";
+        } else if (isResult) {
+          p1Fill = isTeam ? (w1 ? C.redDark : C.redDim) : (w1 ? C.surface2 : C.bg);
+          p1Line = w1 ? C.gold : (isTeam ? "5A1E30" : C.border);
+          p1LineW = w1 ? 2.2 : 0.8;
+          p1TextCol = w1 ? C.gold : (w2 ? C.dimText : C.text);
+          if (w1) p1Sub = (optPred && m.predSide === 1) ? "\n★ WIN (的中)" : "\n★ WIN";
+          else if (optPred && m.predSide === 1) p1Sub = "\n[予想]";
+        }
+
+        s.addShape(pptx.ShapeType.roundRect, {
+          x: x + 0.08, y: innerY, w: sideW, h: innerH,
+          fill: { color: p1Fill }, line: { color: p1Line, width: p1LineW }, rectRadius: 0.06
+        });
+        s.addText(`${m.p1[0]} / ${m.p1[1]}${p1Sub}`, {
+          x: x + 0.1, y: innerY, w: sideW - 0.04, h: innerH,
+          fontSize: nameFontSz, bold: true, color: p1TextCol, fontFace: F_JP, align: "center", valign: "middle"
+        });
+
+        // --- 中央（結果前は VS、結果時はスコア） ---
+        s.addText(isResult ? `${m.s1} - ${m.s2}` : "VS", {
+          x: x + 0.12 + sideW, y: innerY, w: scoreW, h: innerH,
+          fontSize: cols === 1 ? 24 : (n > 6 ? 16 : 18), bold: true,
+          color: isResult ? "FFFFFF" : C.gold, fontFace: F_NUM, align: "center", valign: "middle"
+        });
+
+        // --- 右（白組 / ペア2）のスタイルと文言 ---
+        let p2Fill = isTeam ? C.whiteDark : C.surface2;
+        let p2Line = isTeam ? "CBD5E1" : C.border;
+        let p2LineW = 1.2;
+        let p2TextCol = C.text;
+        let p2Sub = "";
+
+        if (isPredict && m.predSide === 2) {
+          p2Line = C.accent; p2LineW = 2.4; p2TextCol = C.accent; p2Sub = "\nWIN?";
+        } else if (isResult) {
+          p2Fill = isTeam ? (w2 ? C.whiteDark : C.whiteDim) : (w2 ? C.surface2 : C.bg);
+          p2Line = w2 ? C.gold : (isTeam ? "3B4A66" : C.border);
+          p2LineW = w2 ? 2.2 : 0.8;
+          p2TextCol = w2 ? C.gold : (w1 ? C.dimText : C.text);
+          if (w2) p2Sub = (optPred && m.predSide === 2) ? "\n★ WIN (的中)" : "\n★ WIN";
+          else if (optPred && m.predSide === 2) p2Sub = "\n[予想]";
+        }
+
+        s.addShape(pptx.ShapeType.roundRect, {
+          x: x + 0.16 + sideW + scoreW, y: innerY, w: sideW, h: innerH,
+          fill: { color: p2Fill }, line: { color: p2Line, width: p2LineW }, rectRadius: 0.06
+        });
+        s.addText(`${m.p2[0]} / ${m.p2[1]}${p2Sub}`, {
+          x: x + 0.18 + sideW + scoreW, y: innerY, w: sideW - 0.04, h: innerH,
+          fontSize: nameFontSz, bold: true, color: p2TextCol, fontFace: F_JP, align: "center", valign: "middle"
+        });
+      });
+
+      // 結果スライドのみ予想的中率を表示
+      if (isResult && optPred && predTotal > 0) {
+        const ratePct = ((predHits / predTotal) * 100).toFixed(1);
+        s.addShape(pptx.ShapeType.roundRect, {
+          x: 6.3, y: 5.14, w: 3.35, h: 0.34,
+          fill: { color: C.surface2 }, line: { color: C.accent, width: 1 }, rectRadius: 0.15
+        });
+        s.addText(`予想的中率：${ratePct}%（${predHits}/${predTotal}）`, {
+          x: 6.3, y: 5.14, w: 3.35, h: 0.34,
+          fontSize: 11.5, bold: true, color: C.accent, fontFace: F_JP, align: "center", valign: "middle"
+        });
+      }
+    });
+
+    if (isTeam && optMid && (rIdx + 1) % 4 === 0 && (rIdx + 1) < playedRounds.length) {
+      const chunk = roundSummaries.slice(rIdx - 3, rIdx + 1);
+      addMidSummarySlide(chunk, `中間発表（第${chunk[0].r}〜第${chunk[chunk.length - 1].r}試合）`);
+    }
+  });
+  // ==========================================
+  // 5. 写真差し込み用（余興・懇親会等）
+  // ==========================================
+  if (optPhoto) {
+    addPhotoPlaceholder("思い出・オフショット", "ここに余興や試合中のベストショット写真を挿入してください\n（不要な場合はこのスライドを削除してください）");
+  }
+
+  // ==========================================
+  // 6. 最終結果スライド（紅白戦＋勢力ゲージ＋通算的中率）
+  // ==========================================
+  if (isTeam) {
+    const ts = aggregateTeamStats(sess);
+    const s = addSportSlide("紅白戦 最終結果", `TOTAL ${ts.validMatches} MATCHES`, "FINAL");
+
+    const winBanner = ts.winner === "red"
+      ? "🏆 WINNER : 紅組"
+      : (ts.winner === "white" ? "🏆 WINNER : 白組" : "🤝 DRAW");
+
+    s.addShape(pptx.ShapeType.parallelogram, {
+      x: 2.1, y: 0.85, w: 5.8, h: 0.68,
+      fill: { color: ts.winner === "red" ? C.red : (ts.winner === "white" ? C.white : C.surface2) }
+    });
+    s.addText(winBanner, {
+      x: 2.1, y: 0.85, w: 5.8, h: 0.68,
+      fontSize: 26, bold: true, color: ts.winner === "white" ? "0F172A" : "FFFFFF",
+      fontFace: F_JP, align: "center", valign: "middle"
+    });
+
+    // 紅組カード
+    s.addShape(pptx.ShapeType.roundRect, {
+      x: 0.55, y: 1.72, w: 4.1, h: 2.65,
+      fill: { color: ts.winner === "red" ? C.redDark : C.redDim },
+      line: { color: ts.winner === "red" ? C.gold : C.red, width: ts.winner === "red" ? 3 : 1.2 },
+      rectRadius: 0.14
+    });
+    s.addText("TEAM RED  紅組", { x: 0.55, y: 1.88, w: 4.1, h: 0.4, fontSize: 18, bold: true, color: C.redSoft, fontFace: F_JP, align: "center" });
+    s.addText(`${ts.red.wins}`, { x: 0.55, y: 2.32, w: 4.1, h: 1.3, fontSize: 68, bold: true, color: "FFFFFF", fontFace: F_NUM, align: "center", valign: "middle" });
+    s.addText(`総得点 ${ts.red.pf}  /  得失点差 ${ts.red.diff >= 0 ? "+" : ""}${ts.red.diff}`, {
+      x: 0.55, y: 3.78, w: 4.1, h: 0.4, fontSize: 14, bold: true, color: C.text, fontFace: F_JP, align: "center"
+    });
+
+    s.addText("VS", { x: 4.65, y: 2.75, w: 0.7, h: 0.7, fontSize: 28, bold: true, color: C.gold, fontFace: F_NUM, align: "center", valign: "middle" });
+
+    // 白組カード
+    s.addShape(pptx.ShapeType.roundRect, {
+      x: 5.35, y: 1.72, w: 4.1, h: 2.65,
+      fill: { color: ts.winner === "white" ? C.whiteDark : C.whiteDim },
+      line: { color: ts.winner === "white" ? C.gold : "CBD5E1", width: ts.winner === "white" ? 3 : 1.2 },
+      rectRadius: 0.14
+    });
+    s.addText("TEAM WHITE  白組", { x: 5.35, y: 1.88, w: 4.1, h: 0.4, fontSize: 18, bold: true, color: C.white, fontFace: F_JP, align: "center" });
+    s.addText(`${ts.white.wins}`, { x: 5.35, y: 2.32, w: 4.1, h: 1.3, fontSize: 68, bold: true, color: "FFFFFF", fontFace: F_NUM, align: "center", valign: "middle" });
+    s.addText(`総得点 ${ts.white.pf}  /  得失点差 ${ts.white.diff >= 0 ? "+" : ""}${ts.white.diff}`, {
+      x: 5.35, y: 3.78, w: 4.1, h: 0.4, fontSize: 14, bold: true, color: C.text, fontFace: F_JP, align: "center"
+    });
+
+    // 勢力ゲージ
+    drawTugGauge(s, 0.55, 4.58, 8.9, 0.42, ts.red.wins, ts.white.wins);
+
+    if (optPred && totalPredMatches > 0) {
+      const allPct = ((totalPredHits / totalPredMatches) * 100).toFixed(1);
+      s.addText(`大会通算 勝利予想的中率：${allPct}%（${totalPredHits} / ${totalPredMatches}試合的中）`, {
+        x: 0.55, y: 5.1, w: 8.9, h: 0.35,
+        fontSize: 13, bold: true, color: C.accent, fontFace: F_JP, align: "center", valign: "middle"
+      });
+    }
+  }
+
+  // ==========================================
+  // 7. MVP ＆ 特別賞スライド
+  // ==========================================
+  const pList = Object.values(pMap)
+    .filter(p => p.games > 0)
+    .sort((a, b) => (b.wins / b.games) - (a.wins / a.games) || (b.pf - b.pa) - (a.pf - a.pa) || b.pf - a.pf);
+
+  const redSet = new Set(cfg.teams?.red || []);
+
+  if (pList.length > 0) {
+    const mvp = pList[0];
+    const mvpDiff = mvp.pf - mvp.pa;
+    const mvpIsRed = redSet.has(mvp.name);
+    const mvpTeam = isTeam ? (mvpIsRed ? "TEAM RED" : "TEAM WHITE") : "CHAMPION";
+    const s = addSportSlide("MVP 表彰", sess.date, "MVP");
+
+    s.addShape(pptx.ShapeType.roundRect, {
+      x: 1.0, y: 0.95, w: 8.0, h: 4.2,
+      fill: { color: C.surface }, line: { color: C.gold, width: 3 }, rectRadius: 0.16
+    });
+    s.addShape(pptx.ShapeType.parallelogram, {
+      x: 3.1, y: 1.18, w: 3.8, h: 0.45,
+      fill: { color: isTeam ? (mvpIsRed ? C.red : C.white) : C.gold }
+    });
+    s.addText(`👑 ${mvpTeam} 👑`, {
+      x: 3.1, y: 1.18, w: 3.8, h: 0.45,
+      fontSize: 14, bold: true, color: (isTeam && !mvpIsRed) ? "0F172A" : "FFFFFF", fontFace: F_NUM, align: "center", valign: "middle"
+    });
+    s.addText(mvp.name, {
+      x: 1.0, y: 1.85, w: 8.0, h: 1.4,
+      fontSize: 52, bold: true, color: C.gold, fontFace: F_JP, align: "center", valign: "middle"
+    });
+    s.addText(`${mvp.wins}W - ${mvp.losses}L  (${((mvp.wins / mvp.games) * 100).toFixed(1)}%)`, {
+      x: 1.2, y: 3.35, w: 7.6, h: 0.65,
+      fontSize: 28, bold: true, color: "FFFFFF", fontFace: F_NUM, align: "center", valign: "middle"
+    });
+    s.addText(`得点 ${mvp.pf}  /  失点 ${mvp.pa}  /  得失点差 ${mvpDiff >= 0 ? "+" : ""}${mvpDiff}`, {
+      x: 1.2, y: 4.15, w: 7.6, h: 0.5,
+      fontSize: 18, bold: true, color: C.accent, fontFace: F_JP, align: "center", valign: "middle"
+    });
+  }
+
+  if (optAwards && pList.length > 0) {
+    const s = addSportSlide("特別賞", "SPECIAL AWARDS", "AWARDS");
+    const awards = [];
+
+    const bestPair = Object.values(pairMap).sort((a, b) => (b.wins / b.games) - (a.wins / a.games) || (b.pf - b.pa) - (a.pf - a.pa))[0];
+    if (bestPair) {
+      const d = bestPair.pf - bestPair.pa;
+      awards.push({
+        title: "🤝 BEST PAIR",
+        name: bestPair.pair,
+        sub: `${bestPair.wins}勝${bestPair.losses}敗（勝率${Math.round((bestPair.wins / bestPair.games) * 100)}% / 差${d >= 0 ? "+" : ""}${d}）`,
+        col: C.gold
+      });
+    }
+    const bestDiffP = [...pList].sort((a, b) => (b.pf - b.pa) - (a.pf - a.pa))[0];
+    if (bestDiffP) {
+      const d = bestDiffP.pf - bestDiffP.pa;
+      awards.push({
+        title: "🔥 POINT DIFF KING",
+        name: bestDiffP.name,
+        sub: `得失点差 ${d >= 0 ? "+" : ""}${d}（得点 ${bestDiffP.pf} / 失点 ${bestDiffP.pa}）`,
+        col: C.accent
+      });
+    }
+    let closest = null;
+    sess.schedule.forEach(item => item.matches.forEach((m, idx) => {
+      const id = matchId(item.r, idx);
+      if (!isMatchValidOf(sess, id)) return;
+      const sc = getScoreOf(sess, id), s1 = Number(sc.s1), s2 = Number(sc.s2);
+      const margin = Math.abs(s1 - s2), totalPts = s1 + s2;
+      if (!closest || margin < closest.margin || (margin === closest.margin && totalPts > closest.totalPts)) {
+        closest = { r: item.r, court: m.court, p1: m.p1, p2: m.p2, s1, s2, margin, totalPts };
+      }
+    }));
+    if (closest) {
+      awards.push({
+        title: "⚡ BEST BOUT（接戦賞）",
+        name: `${closest.p1.join("・")} vs ${closest.p2.join("・")}`,
+        sub: `第${closest.r}試合 ${closest.court}（${closest.s1} - ${closest.s2}）`,
+        col: C.green
+      });
+    }
+    if (showRate) {
+      const brk = [...pList].sort((a, b) => (cachedRatings.curDelta[b.name] ?? 0) - (cachedRatings.curDelta[a.name] ?? 0))[0];
+      if (brk) {
+        const dR = cachedRatings.curDelta[brk.name] ?? 0;
+        awards.push({
+          title: "📈 BREAKOUT PLAYER",
+          name: brk.name,
+          sub: `当日レート変動 ${dR >= 0 ? "+" : ""}${dR.toFixed(2)}`,
+          col: "A78BFA"
+        });
+      }
+    }
+
+    awards.slice(0, 4).forEach((aw, idx) => {
+      const col = idx % 2, row = Math.floor(idx / 2);
+      const x = 0.45 + col * 4.65, y = 0.95 + row * 2.2;
+      s.addShape(pptx.ShapeType.roundRect, {
+        x, y, w: 4.45, h: 1.95,
+        fill: { color: C.surface }, line: { color: aw.col, width: 2 }, rectRadius: 0.12
+      });
+      s.addText(aw.title, { x: x + 0.15, y: y + 0.15, w: 4.15, h: 0.4, fontSize: 14, bold: true, color: aw.col, fontFace: F_NUM, align: "center" });
+      s.addText(aw.name, { x: x + 0.15, y: y + 0.62, w: 4.15, h: 0.65, fontSize: aw.name.length > 14 ? 14 : 24, bold: true, color: "FFFFFF", fontFace: F_JP, align: "center", valign: "middle" });
+      s.addText(aw.sub, { x: x + 0.15, y: y + 1.35, w: 4.15, h: 0.45, fontSize: 12, color: C.muted, fontFace: F_JP, align: "center", valign: "middle" });
+    });
+  }
+
+  // ==========================================
+  // 8. 個人ランキングスライド（12名ごとに自動分割）
+  // ==========================================
+  const PER_PAGE = 12;
+  const totalPages = Math.ceil(pList.length / PER_PAGE);
+
+  for (let pg = 0; pg < totalPages; pg++) {
+    const chunk = pList.slice(pg * PER_PAGE, (pg + 1) * PER_PAGE);
+    const startRank = pg * PER_PAGE + 1;
+    const endRank = startRank + chunk.length - 1;
+    const s = addSportSlide(`個人ランキング（${startRank}位〜${endRank}位）`, `PAGE ${pg + 1} / ${totalPages}`, "RANKING");
+
+    const headerCells = [
+      { text: "RANK", options: { fill: { color: "0284C7" }, color: "FFFFFF", bold: true, fontFace: F_NUM } },
+      { text: "氏名", options: { fill: { color: "0284C7" }, color: "FFFFFF", bold: true, align: "left" } }
+    ];
+    if (isTeam) headerCells.push({ text: "組", options: { fill: { color: "0284C7" }, color: "FFFFFF", bold: true } });
+    headerCells.push(
+      { text: "試合", options: { fill: { color: "0284C7" }, color: "FFFFFF", bold: true } },
+      { text: "勝", options: { fill: { color: "0284C7" }, color: "FFFFFF", bold: true } },
+      { text: "負", options: { fill: { color: "0284C7" }, color: "FFFFFF", bold: true } },
+      { text: "勝率", options: { fill: { color: "0284C7" }, color: "FFFFFF", bold: true } },
+      { text: "得点", options: { fill: { color: "0284C7" }, color: "FFFFFF", bold: true } },
+      { text: "失点", options: { fill: { color: "0284C7" }, color: "FFFFFF", bold: true } },
+      { text: "得失点差", options: { fill: { color: "0284C7" }, color: "FFFFFF", bold: true } }
+    );
+    if (showRate) headerCells.push({ text: "現在R", options: { fill: { color: "0284C7" }, color: "FFFFFF", bold: true } });
+
+    const tableRows = [headerCells];
+    chunk.forEach((p, idx) => {
+      const rank = startRank + idx;
+      const diff = p.pf - p.pa;
+      const rowBg = idx % 2 === 0 ? C.surface : C.surface2;
+      const rankCol = rank === 1 ? C.gold : (rank <= 3 ? C.accent : C.text);
+      const diffCol = diff > 0 ? "86EFAC" : (diff < 0 ? C.redSoft : C.text);
+
+      const cells = [
+        { text: `${rank}`, options: { fill: { color: rowBg }, color: rankCol, bold: true, fontFace: F_NUM } },
+        { text: p.name, options: { fill: { color: rowBg }, color: C.text, bold: true, align: "left" } }
+      ];
+      if (isTeam) {
+        const isRed = redSet.has(p.name);
+        cells.push({
+          text: isRed ? "紅組" : "白組",
+          options: { fill: { color: rowBg }, color: isRed ? C.redSoft : C.white, bold: true }
+        });
+      }
+      cells.push(
+        { text: String(p.games), options: { fill: { color: rowBg }, color: C.text } },
+        { text: String(p.wins), options: { fill: { color: rowBg }, color: C.text } },
+        { text: String(p.losses), options: { fill: { color: rowBg }, color: C.text } },
+        { text: `${((p.wins / p.games) * 100).toFixed(1)}%`, options: { fill: { color: rowBg }, color: C.text, bold: true } },
+        { text: String(p.pf), options: { fill: { color: rowBg }, color: C.text } },
+        { text: String(p.pa), options: { fill: { color: rowBg }, color: C.text } },
+        { text: diff > 0 ? `+${diff}` : String(diff), options: { fill: { color: rowBg }, color: diffCol, bold: true } }
+      );
+      if (showRate) {
+        const curR = cachedRatings.ratings[p.name] ?? DEFAULT_RATING;
+        cells.push({ text: curR.toFixed(2), options: { fill: { color: rowBg }, color: "DDD6FE", bold: true } });
+      }
+      tableRows.push(cells);
+    });
+
+    s.addTable(tableRows, {
+      x: 0.35, y: 0.82, w: 9.3,
+      rowH: 0.35,
+      fontSize: 11, fontFace: F_JP,
+      border: { pt: 0.5, color: C.border },
+      align: "center", valign: "middle"
+    });
+  }
+
+  const safeTitle = (cfg.title || "badminton").replace(/[\\/:*?"<>|]/g, "_");
+  await pptx.writeFile({ fileName: `${safeTitle}_${sess.date || todayStr()}.pptx` });
+  showToast("スポーツ中継風PPTXをダウンロードしました！");
+}
+
+document.getElementById("btnExportPptx").onclick = () => {
+  generateBadmintonPptx().catch(err => {
+    console.error(err);
+    alert("PPTXの作成中にエラーが発生しました: " + err.message);
+  });
+};
 loadState();
 renderAll();
 </script>
