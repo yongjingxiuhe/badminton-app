@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>バドミントン対戦表＆戦績・レート管理（v10）</title>
+<title>MatchFlow｜バドミントン対戦表＆戦績・レート管理</title>
 <style>
   :root {
     --bg: #0b132b;
@@ -354,7 +354,7 @@
 
 <header>
   <div class="header-top">
-    <h1 id="headerTitle">バドミントン対戦表（v10）</h1>
+    <h1 id="headerTitle">MatchFlow</h1>
     <div class="header-right">
       <button class="undo-btn" id="btnUndo" disabled title="直前の操作を元に戻す">↩ 戻す</button>
       <button class="privacy-btn" id="btnTogglePrivacy">レート表示</button>
@@ -520,11 +520,24 @@
       <!-- Collapsible: Member Master (with Affiliation & Rename) -->
       <details class="acc-card">
         <summary>
-          <span>メンバーマスター管理（所属・改名・最大50名）</span>
-          <span class="progress-badge" id="masterCountBadge">0 / 50名</span>
+          <span>メンバーマスター管理（所属・改名・人数無制限）</span>
+          <span class="progress-badge" id="masterCountBadge">登録 0名</span>
         </summary>
         <div class="acc-body">
-          <p class="note">「改名」ボタンで過去履歴・レートごと一括リネームできます。所属チームを入れると当日選択や紅白戦セットが楽になります。</p>
+          <p class="note">「改名」ボタンで過去履歴・レートごと一括リネームできます。人数制限はありません。</p>
+          <div style="background:rgba(14,165,233,0.12);border:1px solid rgba(56,189,248,0.45);border-radius:10px;padding:10px;margin-bottom:10px;">
+            <div style="font-size:12px;font-weight:800;color:#7dd3fc;margin-bottom:4px;">🔄 CourtFlow メンバーマスター双方向同期</div>
+            <p class="note" style="margin-bottom:8px;">CourtFlowの実力(1〜10)と同期します。MatchFlowのレートは四捨五入して整数(1〜10)でCourtFlowへ反映されます。</p>
+            <div class="btn-row" style="margin-bottom:0;">
+              <button class="action-btn btn-primary btn-small" id="btnCfPull">CourtFlowから取込</button>
+              <button class="action-btn btn-teal btn-small" id="btnCfPush">CourtFlowへ反映</button>
+              <button class="action-btn btn-secondary btn-small" id="btnCfJsonBtn">CourtFlow JSON読込</button>
+              <input type="file" id="inpCfJsonFile" accept=".json,application/json" style="display:none;">
+            </div>
+          </div>
+          <div class="form-group" style="margin-bottom:8px;">
+            <input type="search" id="inpMasterSearch" placeholder="メンバー名・所属で検索...">
+          </div>
           <div class="inline-add-row">
             <input type="text" id="inpNewMemberName" placeholder="名前">
             <input type="text" id="inpNewMemberTeam" placeholder="所属(任意)">
@@ -795,10 +808,10 @@
         <span>全試合のスコア一覧もレポートに含める</span>
         <input type="checkbox" id="chkReportIncludeMatches">
       </label>
-      <button class="action-btn btn-emerald" id="btnSaveReportImage">試合結果レポート画像（PNG）を作成・保存</button>
+      <button class="action-btn btn-emerald" id="btnSaveReportImage">試合結果レポート画像（PNG）を作成（自動複数枚対応）</button>
       <div class="img-preview-wrap" id="reportImgPreviewWrap">
-        <p class="note" style="margin-bottom:6px;">結果レポート画像プレビュー（長押しでも保存できます）</p>
-        <img id="reportImgPreview" alt="試合結果レポート画像">
+        <p class="note" id="reportImgSummaryNote" style="margin-bottom:8px;">結果レポート画像プレビュー（各画像を長押しでも保存できます）</p>
+        <div id="reportImgList" style="display:flex;flex-direction:column;gap:14px;"></div>
       </div>
     </div>
 <!-- NEW: 結果発表PPTX自動出力 -->
@@ -927,7 +940,7 @@ const STORAGE_KEY_V6 = "badminton_allinone_v6";
 const STORAGE_KEY_V5 = "badminton_allinone_v5";
 const STORAGE_KEY_V4 = "badminton_allinone_v4";
 const STORAGE_KEY_V3 = "badminton_allinone_v3";
-const MAX_MEMBERS = 50;
+const COURTFLOW_STORAGE_KEY = "courtflow_v3";
 const DEFAULT_RATING = 5.0;
 const ELO_K = 0.16;
 
@@ -1069,7 +1082,7 @@ function loadState() {
         appState = ensureV9Fields({
           current: p.current,
           history: p.history,
-          memberMaster: Array.from(allNames).slice(0, MAX_MEMBERS),
+          memberMaster: Array.from(allNames),
           memberTeams: p.memberTeams || {},
           memberGenders: p.memberGenders || {},
           selectedAttendees: [...(p.selectedAttendees || p.current.config.players || [])],
@@ -1977,7 +1990,7 @@ function renderAll() {
   applyPrivacyUI();
   updateUndoBtn();
   const mTag = isCurNumberMode() ? " [番号のみ]" : (isCurTeamMode() ? " [紅白戦]" : "");
-  document.getElementById("headerTitle").textContent = `${cur().config.title}${mTag}（${cur().date}）`;
+  document.getElementById("headerTitle").textContent = `MatchFlow｜${cur().config.title}${mTag}（${cur().date}）`;
   document.getElementById("chkChallengeEffect").checked = !!appState.showChallenge;
   document.getElementById("chkReportIncludeMatches").checked = !!appState.reportIncludeMatches;
   renderScoreToolbar();
@@ -2514,11 +2527,15 @@ document.getElementById("btnAssignByAffil").onclick = () => {
 
 function renderMasterAndAttendees() {
   const master = appState.memberMaster;
-  document.getElementById("masterCountBadge").textContent = `${master.length} / ${MAX_MEMBERS}名`;
+  document.getElementById("masterCountBadge").textContent = `登録 ${master.length}名`;
+  const q = (document.getElementById("inpMasterSearch")?.value || "").trim().toLowerCase();
+  const filteredMaster = q
+    ? master.filter(p => p.toLowerCase().includes(q) || (appState.memberTeams[p] || "").toLowerCase().includes(q))
+    : master;
   const tbody = document.getElementById("masterTableBody");
-  tbody.innerHTML = master.length === 0 ? `<tr><td colspan="6" style="color:var(--text-muted);padding:14px;">メンバーを登録してください</td></tr>` : "";
+  tbody.innerHTML = filteredMaster.length === 0 ? `<tr><td colspan="6" style="color:var(--text-muted);padding:14px;">該当するメンバーがいません</td></tr>` : "";
 
-  master.forEach(p => {
+  filteredMaster.forEach(p => {
     const initR = getInitialRating(p), curR = cachedRatings.ratings[p] !== undefined ? cachedRatings.ratings[p] : initR;
     const aff = appState.memberTeams[p] || "";
     const g = appState.memberGenders[p] || "";
@@ -2617,6 +2634,110 @@ function updatePlayerHint() {
     : `選択中 ${ps.length}名 / ${cs.length}面（各ラウンド出場 ${need}名・休憩 ${ps.length - need}名）`;
 }
 
+
+// ==========================================
+// COURTFLOW BI-DIRECTIONAL MEMBER SYNC
+// ==========================================
+function clampSkill10(val) {
+  const n = Math.round(Number(val));
+  if (isNaN(n)) return 5;
+  return Math.max(1, Math.min(10, n));
+}
+
+function importFromCourtFlowData(cfState) {
+  if (!cfState || !Array.isArray(cfState.master)) {
+    alert("CourtFlowのメンバーマスターデータが見つかりません。");
+    return;
+  }
+  pushUndo("CourtFlowからメンバー取込");
+  let added = 0, updated = 0;
+  cfState.master.forEach(m => {
+    const name = String(m.name || "").trim();
+    if (!name) return;
+    const exName = appState.memberMaster.find(n => n.trim().toLowerCase() === name.toLowerCase());
+    if (exName) {
+      if ((m.gender === "M" || m.gender === "F") && !appState.memberGenders[exName]) {
+        appState.memberGenders[exName] = m.gender;
+        updated++;
+      }
+    } else {
+      appState.memberMaster.push(name);
+      if (m.gender === "M" || m.gender === "F") appState.memberGenders[name] = m.gender;
+      appState.initialRatings[name] = clampRating(Number(m.skill) || DEFAULT_RATING);
+      added++;
+    }
+  });
+  saveState();
+  renderAll();
+  showToast(`CourtFlowから取込完了（新規${added}名・性別補完${updated}名 / 既存レート保護）`);
+}
+
+document.getElementById("btnCfPull").onclick = () => {
+  try {
+    const raw = localStorage.getItem(COURTFLOW_STORAGE_KEY);
+    if (!raw) {
+      alert("同じブラウザ内にCourtFlowのデータが見つかりません。\n別環境の場合は「CourtFlow JSON読込」からバックアップファイルを読み込んでください。");
+      return;
+    }
+    importFromCourtFlowData(JSON.parse(raw));
+  } catch (e) {
+    alert("CourtFlowデータの読み込みに失敗しました。");
+  }
+};
+
+document.getElementById("btnCfPush").onclick = () => {
+  try {
+    const raw = localStorage.getItem(COURTFLOW_STORAGE_KEY);
+    if (!raw) {
+      alert("同じブラウザ内にCourtFlowのデータが見つかりません。先にCourtFlowを一度開いてください。");
+      return;
+    }
+    refreshRatingsCache();
+    const cfState = JSON.parse(raw);
+    if (!Array.isArray(cfState.master)) cfState.master = [];
+    let added = 0, updated = 0;
+    appState.memberMaster.forEach(rawName => {
+      const name = String(rawName || "").trim();
+      if (!name) return;
+      const curR = cachedRatings.ratings[name] ?? getInitialRating(name);
+      const skillInt = clampSkill10(curR);
+      const mfGender = appState.memberGenders[name] === "F" ? "F" : (appState.memberGenders[name] === "M" ? "M" : null);
+      const ex = cfState.master.find(m => String(m.name || "").trim().toLowerCase() === name.toLowerCase());
+      if (ex) {
+        if (mfGender) ex.gender = mfGender;
+        ex.skill = skillInt;
+        if (cfState.session && cfState.session.participants && cfState.session.participants[ex.id]) {
+          cfState.session.participants[ex.id].gender = ex.gender;
+          cfState.session.participants[ex.id].skill = ex.skill;
+        }
+        updated++;
+      } else {
+        cfState.master.push({
+          id: "m_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 6),
+          name, gender: mfGender || "M", skill: skillInt
+        });
+        added++;
+      }
+    });
+    localStorage.setItem(COURTFLOW_STORAGE_KEY, JSON.stringify(cfState));
+    showToast(`CourtFlowへ反映完了（新規${added}名・更新${updated}名 / skill 1〜10整数化）`);
+  } catch (e) {
+    alert("CourtFlowへの反映に失敗しました。");
+  }
+};
+
+document.getElementById("btnCfJsonBtn").onclick = () => document.getElementById("inpCfJsonFile").click();
+document.getElementById("inpCfJsonFile").onchange = (e) => {
+  const f = e.target.files[0]; if (!f) return;
+  const r = new FileReader();
+  r.onload = () => {
+    try { importFromCourtFlowData(JSON.parse(r.result)); }
+    catch { alert("JSON形式が正しくありません。"); }
+  };
+  r.readAsText(f); e.target.value = "";
+};
+document.getElementById("inpMasterSearch").addEventListener("input", () => renderMasterAndAttendees());
+
 document.getElementById("btnAddMember").onclick = () => {
   const name = document.getElementById("inpNewMemberName").value.trim();
   const team = document.getElementById("inpNewMemberTeam").value.trim();
@@ -2624,7 +2745,7 @@ document.getElementById("btnAddMember").onclick = () => {
   const rate = clampRating(parseFloat(document.getElementById("inpNewMemberRate").value) || DEFAULT_RATING);
   if (!name) return;
   if (appState.memberMaster.includes(name)) { showToast(`「${name}」は登録済みです`); return; }
-  if (appState.memberMaster.length >= MAX_MEMBERS) { alert(`最大${MAX_MEMBERS}名まで登録できます。`); return; }
+  
   appState.memberMaster.push(name);
   if (team) appState.memberTeams[name] = team;
   if (gender) appState.memberGenders[name] = gender;
@@ -2639,7 +2760,7 @@ document.getElementById("btnBulkAddExec").onclick = () => {
   const raw = document.getElementById("inpBulkNames").value.split(/[、,\n\r\t  ]+/).map(s => s.trim()).filter(Boolean);
   let added = 0;
   for (const name of raw) {
-    if (appState.memberMaster.length >= MAX_MEMBERS) break;
+    
     if (!appState.memberMaster.includes(name)) {
       appState.memberMaster.push(name);
       if (appState.initialRatings[name] === undefined) appState.initialRatings[name] = DEFAULT_RATING;
@@ -3281,12 +3402,21 @@ function drawRoundedRect(ctx, x, y, w, h, r) {
   ctx.lineTo(x + w, y + h - r); ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h); ctx.lineTo(x + r, y + h);
   ctx.quadraticCurveTo(x, y + h, x, y + h - r); ctx.lineTo(x, y + r); ctx.quadraticCurveTo(x, y, x + r, y); ctx.closePath();
 }
-function drawSportyBackground(ctx, W, H) {
-  const g = ctx.createLinearGradient(0, 0, W, H); g.addColorStop(0, "#071329"); g.addColorStop(0.55, "#0d2545"); g.addColorStop(1, "#0b3a4a");
-  ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+function drawLightBackground(ctx, W, H) {
+  ctx.fillStyle = "#f8fafc";
+  ctx.fillRect(0, 0, W, H);
+  // Subtle top accent bar
+  ctx.fillStyle = "#0f172a";
+  ctx.fillRect(0, 0, W, 140);
+  const grad = ctx.createLinearGradient(0, 140, W, 140);
+  grad.addColorStop(0, "#0d9488");
+  grad.addColorStop(0.5, "#0284c7");
+  grad.addColorStop(1, "#f59e0b");
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 140, W, 8);
 }
 
-function generateResultReportImage() {
+function generateResultReportImages() {
   if (isCurNumberMode()) throw new Error("番号のみモードは結果レポート画像を作成できません。");
   refreshRatingsCache();
   const sess = cur(), { pMap, pairMap, totalValidMatches } = aggregateStats([sess]);
@@ -3294,152 +3424,401 @@ function generateResultReportImage() {
   const showRate = !appState.hideRatings, includeMatches = !!appState.reportIncludeMatches, isTeamSess = (sess.config.mode === "team");
   const fontBase = '"Hiragino Kaku Gothic ProN", "Noto Sans JP", Meiryo, sans-serif';
   const pList = Object.values(pMap).filter(p => p.games > 0).sort((a, b) => (b.wins / b.games) - (a.wins / a.games) || (b.pf - b.pa) - (a.pf - a.pa));
-  const topPairs = Object.values(pairMap).sort((a, b) => (b.wins / b.games) - (a.wins / a.games) || ((b.pf - b.pa) / b.games) - ((a.pf - a.pa) / a.games)).slice(0, 5);
+  const topPairs = Object.values(pairMap).sort((a, b) => (b.wins / b.games) - (a.wins / a.games) || ((b.pf - b.pa) / b.games) - ((a.pf - a.pa) / a.games)).slice(0, 8);
   const completedMatches = [];
-  sess.schedule.forEach(item => item.matches.forEach((m, idx) => { const id = matchId(item.r, idx); if (isMatchValidOf(sess, id)) { const sc = getScoreOf(sess, id); completedMatches.push({ r: item.r, court: m.court, p1: m.p1, p2: m.p2, s1: Number(sc.s1), s2: Number(sc.s2) }); } }));
+  sess.schedule.forEach(item => item.matches.forEach((m, idx) => {
+    const id = matchId(item.r, idx);
+    if (isMatchValidOf(sess, id)) {
+      const sc = getScoreOf(sess, id);
+      completedMatches.push({ r: item.r, court: m.court, p1: m.p1, p2: m.p2, s1: Number(sc.s1), s2: Number(sc.s2) });
+    }
+  }));
 
-  const W = 1080, padX = 48, contentW = W - padX * 2, headerH = 155, secGap = 28, teamBannerH = isTeamSess ? 156 : 0, awardsH = 128, secTitleH = 40, thH = 46, rowH = 50;
-  const pTableH = thH + pList.length * rowH, prTableH = thH + topPairs.length * rowH, mRows = Math.ceil(completedMatches.length / 2);
-  const matchesH = (includeMatches && completedMatches.length) ? (secGap + secTitleH + mRows * 74 + Math.max(0, mRows - 1) * 12) : 0;
-  const H = headerH + teamBannerH + awardsH + secGap + secTitleH + pTableH + secGap + secTitleH + prTableH + matchesH + 54;
+  const pages = [];
+  const W = 1200, padX = 48, contentW = W - padX * 2;
 
-  const canvas = document.createElement("canvas"); canvas.width = W; canvas.height = H;
-  const ctx = canvas.getContext("2d"); drawSportyBackground(ctx, W, H);
-  ctx.textAlign = "center"; ctx.textBaseline = "middle";
-  ctx.font = `800 38px ${fontBase}`; ctx.fillStyle = "#facc15"; ctx.fillText(`${sess.config.title} 結果レポート`, W / 2, 56);
-  ctx.font = `700 21px ${fontBase}`; ctx.fillStyle = "#cbd5e1"; ctx.fillText(`${sess.date} ｜ ${getCurMatchPts()}点マッチ ｜ 参加 ${pList.length}名 ｜ 全 ${totalValidMatches}試合`, W / 2, 110);
+  const drawPageHeader = (ctx, pageTitle, pageSub) => {
+    ctx.textAlign = "left"; ctx.textBaseline = "middle";
+    ctx.font = `900 42px ${fontBase}`; ctx.fillStyle = "#ffffff";
+    ctx.fillText(pageTitle, padX, 54);
+    ctx.font = `700 24px ${fontBase}`; ctx.fillStyle = "#94a3b8";
+    ctx.fillText(pageSub, padX, 106);
+    ctx.textAlign = "right";
+    ctx.font = `900 24px ${fontBase}`; ctx.fillStyle = "#34d399";
+    ctx.fillText("MatchFlow", W - padX, 54);
+  };
 
-  let y = headerH;
-  if (isTeamSess) {
-    const ts = aggregateTeamStats(sess); drawRoundedRect(ctx, padX, y, contentW, 128, 14);
-    ctx.fillStyle = "rgba(11,19,43,0.82)"; ctx.fill(); ctx.strokeStyle = "rgba(239,68,68,0.55)"; ctx.lineWidth = 2; ctx.stroke();
-    const wLbl = ts.winner === "red" ? "紅組 WIN!" : (ts.winner === "white" ? "白組 WIN!" : "DRAW");
-    ctx.font = `800 22px ${fontBase}`; ctx.fillStyle = "#facc15"; ctx.fillText(`紅白戦 チーム結果 【 ${wLbl} 】`, W / 2, y + 30);
-    ctx.font = `800 30px ${fontBase}`; ctx.fillStyle = "#fca5a5"; ctx.fillText(`紅組 ${ts.red.wins}勝`, padX + contentW * 0.25, y + 72);
-    ctx.font = `700 18px ${fontBase}`; ctx.fillStyle = "#e2e8f0"; ctx.fillText(`総得点 ${ts.red.pf}（差 ${ts.red.diff >= 0 ? '+' : ''}${ts.red.diff}）`, padX + contentW * 0.25, y + 104);
-    ctx.font = `900 24px ${fontBase}`; ctx.fillStyle = "#facc15"; ctx.fillText("VS", W / 2, y + 80);
-    ctx.font = `800 30px ${fontBase}`; ctx.fillStyle = "#f8fafc"; ctx.fillText(`白組 ${ts.white.wins}勝`, padX + contentW * 0.75, y + 72);
-    ctx.font = `700 18px ${fontBase}`; ctx.fillStyle = "#e2e8f0"; ctx.fillText(`総得点 ${ts.white.pf}（差 ${ts.white.diff >= 0 ? '+' : ''}${ts.white.diff}）`, padX + contentW * 0.75, y + 104);
-    y += 156;
+  const drawSecTitle = (ctx, y, title) => {
+    ctx.fillStyle = "#0d9488";
+    ctx.fillRect(padX, y + 6, 8, 32);
+    ctx.textAlign = "left"; ctx.textBaseline = "middle";
+    ctx.font = `900 30px ${fontBase}`; ctx.fillStyle = "#0f172a";
+    ctx.fillText(title, padX + 20, y + 22);
+    return y + 52;
+  };
+
+  // --- PAGE 1 (+ overflow pages if > 10 players): Summary, Awards & Individual Ranking ---
+  const PLAYERS_FIRST_PAGE = 10;
+  const PLAYERS_NEXT_PAGE = 16;
+  const playerChunks = [];
+  if (pList.length <= PLAYERS_FIRST_PAGE) {
+    playerChunks.push({ list: pList, offset: 0, isFirst: true });
+  } else {
+    playerChunks.push({ list: pList.slice(0, PLAYERS_FIRST_PAGE), offset: 0, isFirst: true });
+    for (let i = PLAYERS_FIRST_PAGE; i < pList.length; i += PLAYERS_NEXT_PAGE) {
+      playerChunks.push({ list: pList.slice(i, i + PLAYERS_NEXT_PAGE), offset: i, isFirst: false });
+    }
   }
 
-  const mvp = pList[0], bestDiff = [...pList].sort((a, b) => (b.pf - b.pa) - (a.pf - a.pa))[0], brk = [...pList].sort((a, b) => (cachedRatings.curDelta[b.name] ?? 0) - (cachedRatings.curDelta[a.name] ?? 0))[0];
-  const awards = [{ label: "MVP（1位）", col: "#facc15", name: mvp.name, sub: `${mvp.wins}勝${mvp.losses}敗 (${Math.round((mvp.wins / mvp.games) * 100)}%)` }, { label: "最大得失点差", col: "#38bdf8", name: bestDiff.name, sub: `${(bestDiff.pf - bestDiff.pa) >= 0 ? '+' : ''}${bestDiff.pf - bestDiff.pa}点` }];
-  if (showRate && brk) awards.push({ label: "ブレイク賞", col: "#a78bfa", name: brk.name, sub: `${(cachedRatings.curDelta[brk.name] ?? 0) >= 0 ? '+' : ''}${(cachedRatings.curDelta[brk.name] ?? 0).toFixed(2)}` });
-  const cW = (contentW - 16 * (awards.length - 1)) / awards.length;
-  awards.forEach((aw, i) => {
-    const cx = padX + i * (cW + 16); drawRoundedRect(ctx, cx, y, cW, awardsH - 8, 14);
-    ctx.fillStyle = "rgba(11,19,43,0.75)"; ctx.fill(); ctx.strokeStyle = aw.col; ctx.lineWidth = 2; ctx.stroke();
-    ctx.font = `800 18px ${fontBase}`; ctx.fillStyle = aw.col; ctx.fillText(aw.label, cx + cW / 2, y + 28);
-    ctx.font = `800 28px ${fontBase}`; ctx.fillStyle = "#fff"; ctx.fillText(aw.name, cx + cW / 2, y + 66);
-    ctx.font = `700 18px ${fontBase}`; ctx.fillStyle = "#e2e8f0"; ctx.fillText(aw.sub, cx + cW / 2, y + 98);
-  });
-  y += awardsH + secGap;
+  playerChunks.forEach((chunk, cIdx) => {
+    const teamBannerH = (chunk.isFirst && isTeamSess) ? 185 : 0;
+    const awardsH = chunk.isFirst ? 156 : 0;
+    const thH = 56, rowH = 62;
+    const pTableH = thH + chunk.list.length * rowH;
+    const H = 180 + teamBannerH + (teamBannerH ? 24 : 0) + awardsH + (awardsH ? 28 : 0) + 52 + pTableH + 56;
 
-  const drawTitle = (t) => { ctx.textAlign = "left"; ctx.fillStyle = "#facc15"; ctx.fillRect(padX, y + 6, 6, 24); ctx.font = `800 24px ${fontBase}`; ctx.fillText(t, padX + 16, y + 19); y += secTitleH; };
-  drawTitle(showRate ? "個人成績＆当日レート変動" : "個人成績ランキング");
-  ctx.fillStyle = "rgba(11,19,43,0.76)"; ctx.fillRect(padX, y, contentW, pTableH); ctx.fillStyle = "rgba(2,132,199,0.34)"; ctx.fillRect(padX, y, contentW, thH);
-  const pCols = [80, 260, 140, 140, 140, contentW - 760]; let x = padX; ctx.font = `800 19px ${fontBase}`; ctx.fillStyle = "#facc15";
-  ["順位", "選手", "勝-負", "勝率", "得失点", showRate ? "現在R(変動)" : "平均得点"].forEach((h, i) => { ctx.textAlign = i === 1 ? "left" : "center"; ctx.fillText(h, i === 1 ? x + 14 : x + pCols[i] / 2, y + thH / 2); x += pCols[i]; });
-  pList.forEach((p, idx) => {
-    const ry = y + thH + idx * rowH; if (idx % 2 === 1) { ctx.fillStyle = "rgba(56,189,248,0.06)"; ctx.fillRect(padX, ry, contentW, rowH); }
-    const d = p.pf - p.pa, curR = cachedRatings.ratings[p.name] ?? DEFAULT_RATING, dR = cachedRatings.curDelta[p.name] ?? 0;
-    let cx = padX; ctx.font = `700 20px ${fontBase}`;
-    [String(idx + 1), p.name, `${p.wins}-${p.losses}`, `${Math.round((p.wins / p.games) * 100)}%`, d > 0 ? `+${d}` : String(d), showRate ? `${curR.toFixed(2)} (${dR >= 0 ? '+' : ''}${dR.toFixed(2)})` : (p.pf / p.games).toFixed(1)].forEach((v, i) => { ctx.textAlign = i === 1 ? "left" : "center"; ctx.fillStyle = i === 4 ? (d > 0 ? "#86efac" : (d < 0 ? "#fca5a5" : "#fff")) : "#fff"; ctx.fillText(v, i === 1 ? cx + 14 : cx + pCols[i] / 2, ry + rowH / 2); cx += pCols[i]; });
-  });
-  y += pTableH + secGap;
+    const canvas = document.createElement("canvas"); canvas.width = W; canvas.height = H;
+    const ctx = canvas.getContext("2d"); drawLightBackground(ctx, W, H);
+    drawPageHeader(
+      ctx,
+      `${sess.config.title} 結果レポート`,
+      `${sess.date} ｜ ${getCurMatchPts()}点マッチ ｜ 参加 ${pList.length}名 ｜ 全 ${totalValidMatches}試合`
+    );
 
-  drawTitle(`当日ベストペア（TOP ${topPairs.length}）`);
-  ctx.fillStyle = "rgba(11,19,43,0.76)"; ctx.fillRect(padX, y, contentW, prTableH); ctx.fillStyle = "rgba(2,132,199,0.34)"; ctx.fillRect(padX, y, contentW, thH);
-  const prCols = [85, 420, 150, 150, contentW - 805]; let px = padX; ctx.font = `800 19px ${fontBase}`; ctx.fillStyle = "#facc15";
-  ["順位", "ペア", "勝-負", "勝率", "得失点差"].forEach((h, i) => { ctx.textAlign = i === 1 ? "left" : "center"; ctx.fillText(h, i === 1 ? px + 14 : px + prCols[i] / 2, y + thH / 2); px += prCols[i]; });
-  topPairs.forEach((pr, idx) => {
-    const ry = y + thH + idx * rowH, d = pr.pf - pr.pa; let cx = padX; ctx.font = `700 20px ${fontBase}`;
-    [String(idx + 1), pr.pair, `${pr.wins}-${pr.losses}`, `${Math.round((pr.wins / pr.games) * 100)}%`, d > 0 ? `+${d}` : String(d)].forEach((v, i) => { ctx.textAlign = i === 1 ? "left" : "center"; ctx.fillStyle = i === 4 ? (d > 0 ? "#86efac" : "#fca5a5") : "#fff"; ctx.fillText(v, i === 1 ? cx + 14 : cx + prCols[i] / 2, ry + rowH / 2); cx += prCols[i]; });
-  });
-  y += prTableH;
-  if (includeMatches && completedMatches.length) {
-    y += secGap; drawTitle(`全試合スコア一覧（${completedMatches.length}試合）`); const mW = (contentW - 16) / 2;
-    completedMatches.forEach((m, idx) => {
-      const mx = padX + (idx % 2) * (mW + 16), my = y + Math.floor(idx / 2) * 86;
-      drawRoundedRect(ctx, mx, my, mW, 74, 10); ctx.fillStyle = "rgba(11,19,43,0.72)"; ctx.fill(); ctx.strokeStyle = "rgba(58,80,107,0.75)"; ctx.stroke();
-      ctx.textAlign = "left"; ctx.font = `700 13px ${fontBase}`; ctx.fillStyle = "#38bdf8"; ctx.fillText(`R${m.r} ${m.court}`, mx + 12, my + 18);
-      ctx.textAlign = "center"; ctx.font = `700 17px ${fontBase}`; ctx.fillStyle = "#fff"; ctx.fillText(`${m.p1[0]}・${m.p1[1]}  ${m.s1} - ${m.s2}  ${m.p2[0]}・${m.p2[1]}`, mx + mW / 2, my + 48);
+    let y = 176;
+    if (chunk.isFirst && isTeamSess) {
+      const ts = aggregateTeamStats(sess);
+      drawRoundedRect(ctx, padX, y, contentW, 180, 16);
+      ctx.fillStyle = "#ffffff"; ctx.fill();
+      ctx.strokeStyle = "#cbd5e1"; ctx.lineWidth = 2.5; ctx.stroke();
+
+      const wLbl = ts.winner === "red" ? "🏆 紅組 WIN!" : (ts.winner === "white" ? "🏆 白組 WIN!" : "🤝 DRAW");
+      ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.font = `900 28px ${fontBase}`; ctx.fillStyle = ts.winner === "red" ? "#dc2626" : "#0f172a";
+      ctx.fillText(`紅白戦 チーム結果 【 ${wLbl} 】`, W / 2, y + 36);
+
+      // Red box
+      drawRoundedRect(ctx, padX + 24, y + 66, contentW * 0.41, 96, 12);
+      ctx.fillStyle = "#fef2f2"; ctx.fill(); ctx.strokeStyle = "#dc2626"; ctx.lineWidth = 2.5; ctx.stroke();
+      ctx.font = `900 38px ${fontBase}`; ctx.fillStyle = "#dc2626";
+      ctx.fillText(`紅組  ${ts.red.wins}勝`, padX + 24 + contentW * 0.205, y + 102);
+      ctx.font = `700 22px ${fontBase}`; ctx.fillStyle = "#475569";
+      ctx.fillText(`総得点 ${ts.red.pf}（差 ${ts.red.diff >= 0 ? "+" : ""}${ts.red.diff}）`, padX + 24 + contentW * 0.205, y + 140);
+
+      ctx.font = `900 32px ${fontBase}`; ctx.fillStyle = "#f59e0b";
+      ctx.fillText("VS", W / 2, y + 114);
+
+      // White box
+      const wx = W - padX - 24 - contentW * 0.41;
+      drawRoundedRect(ctx, wx, y + 66, contentW * 0.41, 96, 12);
+      ctx.fillStyle = "#f1f5f9"; ctx.fill(); ctx.strokeStyle = "#475569"; ctx.lineWidth = 2.5; ctx.stroke();
+      ctx.font = `900 38px ${fontBase}`; ctx.fillStyle = "#0f172a";
+      ctx.fillText(`白組  ${ts.white.wins}勝`, wx + contentW * 0.205, y + 102);
+      ctx.font = `700 22px ${fontBase}`; ctx.fillStyle = "#475569";
+      ctx.fillText(`総得点 ${ts.white.pf}（差 ${ts.white.diff >= 0 ? "+" : ""}${ts.white.diff}）`, wx + contentW * 0.205, y + 140);
+
+      y += 208;
+    }
+
+    if (chunk.isFirst) {
+      const mvp = pList[0];
+      const bestDiff = [...pList].sort((a, b) => (b.pf - b.pa) - (a.pf - a.pa))[0];
+      const brk = [...pList].sort((a, b) => (cachedRatings.curDelta[b.name] ?? 0) - (cachedRatings.curDelta[a.name] ?? 0))[0];
+      const awards = [
+        { label: "👑 MVP（1位）", col: "#d97706", bg: "#fffbeb", name: mvp.name, sub: `${mvp.wins}勝${mvp.losses}敗 (${Math.round((mvp.wins / mvp.games) * 100)}%)` },
+        { label: "🔥 最大得失点差", col: "#0284c7", bg: "#f0f9ff", name: bestDiff.name, sub: `${(bestDiff.pf - bestDiff.pa) >= 0 ? "+" : ""}${bestDiff.pf - bestDiff.pa}点` }
+      ];
+      if (showRate && brk) {
+        awards.push({ label: "📈 ブレイク賞", col: "#7c3aed", bg: "#f5f3ff", name: brk.name, sub: `${(cachedRatings.curDelta[brk.name] ?? 0) >= 0 ? "+" : ""}${(cachedRatings.curDelta[brk.name] ?? 0).toFixed(2)}` });
+      }
+      const gap = 20, cW = (contentW - gap * (awards.length - 1)) / awards.length;
+      awards.forEach((aw, i) => {
+        const cx = padX + i * (cW + gap);
+        drawRoundedRect(ctx, cx, y, cW, 148, 16);
+        ctx.fillStyle = aw.bg; ctx.fill(); ctx.strokeStyle = aw.col; ctx.lineWidth = 3; ctx.stroke();
+        ctx.textAlign = "center"; ctx.textBaseline = "middle";
+        ctx.font = `900 22px ${fontBase}`; ctx.fillStyle = aw.col; ctx.fillText(aw.label, cx + cW / 2, y + 32);
+        ctx.font = `900 36px ${fontBase}`; ctx.fillStyle = "#0f172a"; ctx.fillText(aw.name, cx + cW / 2, y + 78);
+        ctx.font = `800 24px ${fontBase}`; ctx.fillStyle = "#334155"; ctx.fillText(aw.sub, cx + cW / 2, y + 118);
+      });
+      y += 176;
+    }
+
+    const rankRange = playerChunks.length > 1 ? `（${chunk.offset + 1}位〜${chunk.offset + chunk.list.length}位）` : "";
+    y = drawSecTitle(ctx, y, (showRate ? "個人成績＆当日レート変動" : "個人成績ランキング") + rankRange);
+
+    drawRoundedRect(ctx, padX, y, contentW, pTableH, 12);
+    ctx.fillStyle = "#ffffff"; ctx.fill(); ctx.strokeStyle = "#cbd5e1"; ctx.lineWidth = 2; ctx.stroke();
+    ctx.fillStyle = "#0f172a"; ctx.fillRect(padX, y, contentW, thH);
+
+    const pCols = [90, 290, 155, 145, 155, contentW - 835];
+    let x = padX;
+    ctx.font = `800 23px ${fontBase}`; ctx.fillStyle = "#facc15"; ctx.textBaseline = "middle";
+    ["順位", "選手", "勝-負", "勝率", "得失点", showRate ? "現在R (変動)" : "平均得点"].forEach((h, i) => {
+      ctx.textAlign = i === 1 ? "left" : "center";
+      ctx.fillText(h, i === 1 ? x + 18 : x + pCols[i] / 2, y + thH / 2);
+      x += pCols[i];
     });
+
+    chunk.list.forEach((p, idx) => {
+      const rank = chunk.offset + idx + 1;
+      const ry = y + thH + idx * rowH;
+      if (idx % 2 === 1) { ctx.fillStyle = "#f1f5f9"; ctx.fillRect(padX + 1, ry, contentW - 2, rowH); }
+      ctx.strokeStyle = "#e2e8f0"; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.moveTo(padX, ry); ctx.lineTo(padX + contentW, ry); ctx.stroke();
+
+      const d = p.pf - p.pa, curR = cachedRatings.ratings[p.name] ?? DEFAULT_RATING, dR = cachedRatings.curDelta[p.name] ?? 0;
+      let cx = padX;
+      const vals = [
+        String(rank), p.name, `${p.wins}-${p.losses}`, `${Math.round((p.wins / p.games) * 100)}%`,
+        d > 0 ? `+${d}` : String(d),
+        showRate ? `${curR.toFixed(2)} (${dR >= 0 ? "+" : ""}${dR.toFixed(2)})` : (p.pf / p.games).toFixed(1)
+      ];
+      vals.forEach((v, i) => {
+        ctx.textAlign = i === 1 ? "left" : "center";
+        ctx.font = (i === 0 || i === 1 || i === 4) ? `900 26px ${fontBase}` : `800 24px ${fontBase}`;
+        ctx.fillStyle = i === 0 && rank <= 3 ? "#d97706" : (i === 4 ? (d > 0 ? "#059669" : (d < 0 ? "#dc2626" : "#0f172a")) : "#0f172a");
+        ctx.fillText(v, i === 1 ? cx + 18 : cx + pCols[i] / 2, ry + rowH / 2);
+        cx += pCols[i];
+      });
+    });
+
+    pages.push({ title: `結果レポート（個人成績${rankRange}）`, dataUrl: canvas.toDataURL("image/png") });
+  });
+
+  // --- NEXT PAGE: Best Pairs ---
+  {
+    const thH = 56, rowH = 62;
+    const prTableH = thH + topPairs.length * rowH;
+    const H = 180 + 52 + prTableH + 60;
+    const canvas = document.createElement("canvas"); canvas.width = W; canvas.height = H;
+    const ctx = canvas.getContext("2d"); drawLightBackground(ctx, W, H);
+    drawPageHeader(ctx, `${sess.config.title} ベストペア`, `${sess.date} ｜ 当日ペア成績 TOP ${topPairs.length}`);
+
+    let y = drawSecTitle(ctx, 176, `当日ベストペア（TOP ${topPairs.length}）`);
+    drawRoundedRect(ctx, padX, y, contentW, prTableH, 12);
+    ctx.fillStyle = "#ffffff"; ctx.fill(); ctx.strokeStyle = "#cbd5e1"; ctx.lineWidth = 2; ctx.stroke();
+    ctx.fillStyle = "#0f172a"; ctx.fillRect(padX, y, contentW, thH);
+
+    const prCols = [95, 480, 170, 170, contentW - 915];
+    let px = padX; ctx.font = `800 23px ${fontBase}`; ctx.fillStyle = "#facc15"; ctx.textBaseline = "middle";
+    ["順位", "ペア", "勝-負", "勝率", "得失点差"].forEach((h, i) => {
+      ctx.textAlign = i === 1 ? "left" : "center";
+      ctx.fillText(h, i === 1 ? px + 18 : px + prCols[i] / 2, y + thH / 2);
+      px += prCols[i];
+    });
+    topPairs.forEach((pr, idx) => {
+      const ry = y + thH + idx * rowH, d = pr.pf - pr.pa;
+      if (idx % 2 === 1) { ctx.fillStyle = "#f1f5f9"; ctx.fillRect(padX + 1, ry, contentW - 2, rowH); }
+      ctx.strokeStyle = "#e2e8f0"; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.moveTo(padX, ry); ctx.lineTo(padX + contentW, ry); ctx.stroke();
+      let cx = padX;
+      [String(idx + 1), pr.pair, `${pr.wins}-${pr.losses}`, `${Math.round((pr.wins / pr.games) * 100)}%`, d > 0 ? `+${d}` : String(d)].forEach((v, i) => {
+        ctx.textAlign = i === 1 ? "left" : "center";
+        ctx.font = (i === 0 || i === 1 || i === 4) ? `900 26px ${fontBase}` : `800 24px ${fontBase}`;
+        ctx.fillStyle = i === 0 && idx < 3 ? "#d97706" : (i === 4 ? (d > 0 ? "#059669" : (d < 0 ? "#dc2626" : "#0f172a")) : "#0f172a");
+        ctx.fillText(v, i === 1 ? cx + 18 : cx + prCols[i] / 2, ry + rowH / 2);
+        cx += prCols[i];
+      });
+    });
+    pages.push({ title: "結果レポート（ベストペア）", dataUrl: canvas.toDataURL("image/png") });
   }
-  return canvas.toDataURL("image/png");
+
+  // --- OPTIONAL MATCH SCORE PAGES (10 matches per page, 2 cols x 5 rows) ---
+  if (includeMatches && completedMatches.length) {
+    const PER_PAGE = 10;
+    const totalMatchPages = Math.ceil(completedMatches.length / PER_PAGE);
+    for (let pg = 0; pg < totalMatchPages; pg++) {
+      const chunk = completedMatches.slice(pg * PER_PAGE, (pg + 1) * PER_PAGE);
+      const rows = Math.ceil(chunk.length / 2);
+      const cardH = 112, gapY = 18, gapX = 20;
+      const H = 180 + 52 + rows * cardH + Math.max(0, rows - 1) * gapY + 56;
+
+      const canvas = document.createElement("canvas"); canvas.width = W; canvas.height = H;
+      const ctx = canvas.getContext("2d"); drawLightBackground(ctx, W, H);
+      drawPageHeader(ctx, `${sess.config.title} 試合スコア一覧`, `${sess.date} ｜ 全 ${completedMatches.length}試合（${pg + 1} / ${totalMatchPages}）`);
+
+      const yStart = drawSecTitle(ctx, 176, `試合結果一覧（${pg * PER_PAGE + 1}〜${pg * PER_PAGE + chunk.length}試合目）`);
+      const mW = (contentW - gapX) / 2;
+
+      chunk.forEach((m, idx) => {
+        const mx = padX + (idx % 2) * (mW + gapX);
+        const my = yStart + Math.floor(idx / 2) * (cardH + gapY);
+        const w1 = m.s1 > m.s2, w2 = m.s2 > m.s1;
+
+        drawRoundedRect(ctx, mx, my, mW, cardH, 14);
+        ctx.fillStyle = "#ffffff"; ctx.fill(); ctx.strokeStyle = "#cbd5e1"; ctx.lineWidth = 2; ctx.stroke();
+
+        // Top meta
+        ctx.textAlign = "left"; ctx.textBaseline = "middle";
+        ctx.font = `800 18px ${fontBase}`; ctx.fillStyle = "#0284c7";
+        ctx.fillText(`第${m.r}R  ${m.court}`, mx + 16, my + 24);
+
+        // Score center
+        ctx.textAlign = "center";
+        ctx.font = `900 32px ${fontBase}`; ctx.fillStyle = "#0f172a";
+        ctx.fillText(`${m.s1} - ${m.s2}`, mx + mW / 2, my + 70);
+
+        // Left pair
+        const sideW = mW / 2 - 76;
+        ctx.font = `${w1 ? "900" : "700"} 22px ${fontBase}`;
+        ctx.fillStyle = w1 ? "#059669" : "#334155";
+        let p1Txt = `${m.p1[0]}・${m.p1[1]}`;
+        let fs1 = 22;
+        while (ctx.measureText(p1Txt).width > sideW && fs1 > 15) { fs1--; ctx.font = `${w1 ? "900" : "700"} ${fs1}px ${fontBase}`; }
+        ctx.fillText(p1Txt, mx + 12 + sideW / 2, my + 70);
+
+        // Right pair
+        ctx.font = `${w2 ? "900" : "700"} 22px ${fontBase}`;
+        ctx.fillStyle = w2 ? "#059669" : "#334155";
+        let p2Txt = `${m.p2[0]}・${m.p2[1]}`;
+        let fs2 = 22;
+        while (ctx.measureText(p2Txt).width > sideW && fs2 > 15) { fs2--; ctx.font = `${w2 ? "900" : "700"} ${fs2}px ${fontBase}`; }
+        ctx.fillText(p2Txt, mx + mW - 12 - sideW / 2, my + 70);
+      });
+
+      pages.push({ title: `試合スコア一覧 (${pg + 1}/${totalMatchPages})`, dataUrl: canvas.toDataURL("image/png") });
+    }
+  }
+
+  return pages;
 }
 
 function generateScheduleImage() {
   const courts = cur().config.courts, numCourts = courts.length, hasRest = cur().schedule.some(it => it.rest && it.rest.length > 0);
   const isNum = isCurNumberMode(), isTeam = isCurTeamMode(), showCh = !!appState.showChallenge && !isNum;
-  const padX = 44, colRoundW = 155, colCourtW = numCourts <= 2 ? 450 : (numCourts <= 4 ? 380 : 340), colRestW = hasRest ? 290 : 0;
+  const padX = 48, colRoundW = 148, colCourtW = numCourts <= 2 ? 520 : (numCourts <= 4 ? 440 : 390), colRestW = hasRest ? 320 : 0;
   const tableW = colRoundW + numCourts * colCourtW + colRestW, W = tableW + padX * 2, fontBase = '"Hiragino Kaku Gothic ProN", "Noto Sans JP", Meiryo, sans-serif';
-  const mCtx = document.createElement("canvas").getContext("2d"); mCtx.font = `700 20px ${fontBase}`;
+  const mCtx = document.createElement("canvas").getContext("2d"); mCtx.font = `700 24px ${fontBase}`;
   const rowHeights = cur().schedule.map(it => {
-    let h = showCh && it.matches.some(m => getChallengeInfo(m.p1, m.p2)) ? 76 : 64;
-    if (hasRest && it.rest && it.rest.length) h = Math.max(h, wrapTextLines(mCtx, it.rest.join("・"), colRestW - 24).length * 26 + 22);
+    let h = showCh && it.matches.some(m => getChallengeInfo(m.p1, m.p2)) ? 94 : 78;
+    if (hasRest && it.rest && it.rest.length) h = Math.max(h, wrapTextLines(mCtx, it.rest.join("・"), colRestW - 28).length * 32 + 26);
     return h;
   });
-  const headerH = 185, thH = 60, bodyH = rowHeights.reduce((a, b) => a + b, 0), H = headerH + thH + bodyH + 44;
+  const headerH = 186, thH = 68, bodyH = rowHeights.reduce((a, b) => a + b, 0), H = headerH + thH + bodyH + 54;
   const canvas = document.createElement("canvas"); canvas.width = W; canvas.height = H;
-  const ctx = canvas.getContext("2d"); drawSportyBackground(ctx, W, H);
-  ctx.textAlign = "center"; ctx.textBaseline = "middle";
-  ctx.font = `800 40px ${fontBase}`; ctx.fillStyle = "#facc15";
+  const ctx = canvas.getContext("2d"); drawLightBackground(ctx, W, H);
+
+  ctx.textAlign = "left"; ctx.textBaseline = "middle";
+  ctx.font = `900 44px ${fontBase}`; ctx.fillStyle = "#ffffff";
   const mTag = isTeam ? " [紅白戦]" : (cur().config.mode === "rating" ? " [実力拮抗]" : "");
-  ctx.fillText(`${cur().config.title}（全${cur().schedule.length}R）${mTag}`, W / 2, 62);
-  ctx.font = `700 20px ${fontBase}`; ctx.fillStyle = "#e2e8f0";
-  ctx.fillText(`${cur().date} ｜ ${getCurMatchPts()}点マッチ ｜ 参加(${cur().config.players.length}名)：${isNum ? `1番〜${cur().config.players.length}番` : cur().config.players.join("、")}`, W / 2, 124);
+  ctx.fillText(`${cur().config.title}（全${cur().schedule.length}R）${mTag}`, padX, 54);
+  ctx.font = `700 23px ${fontBase}`; ctx.fillStyle = "#cbd5e1";
+  const pSummary = isNum ? `1番〜${cur().config.players.length}番` : cur().config.players.join("、");
+  let metaTxt = `${cur().date} ｜ ${getCurMatchPts()}点マッチ ｜ 参加(${cur().config.players.length}名)：${pSummary}`;
+  if (ctx.measureText(metaTxt).width > tableW - 140) metaTxt = `${cur().date} ｜ ${getCurMatchPts()}点マッチ ｜ 参加 ${cur().config.players.length}名`;
+  ctx.fillText(metaTxt, padX, 106);
+  ctx.textAlign = "right"; ctx.font = `900 24px ${fontBase}`; ctx.fillStyle = "#34d399";
+  ctx.fillText("MatchFlow", W - padX, 54);
 
   const tX = padX, tY = headerH, tH = thH + bodyH;
-  ctx.fillStyle = "rgba(11,19,43,0.74)"; ctx.fillRect(tX, tY, tableW, tH); ctx.fillStyle = "rgba(2,132,199,0.32)"; ctx.fillRect(tX, tY, tableW, thH);
+  ctx.fillStyle = "#ffffff"; ctx.fillRect(tX, tY, tableW, tH);
+  ctx.fillStyle = "#0f172a"; ctx.fillRect(tX, tY, tableW, thH);
   const colXs = [tX, tX + colRoundW]; for (let c = 0; c < numCourts; c++) colXs.push(colXs[colXs.length - 1] + colCourtW); if (hasRest) colXs.push(colXs[colXs.length - 1] + colRestW);
-  ctx.font = `800 23px ${fontBase}`; ctx.fillStyle = "#facc15"; ctx.fillText("ラウンド", tX + colRoundW / 2, tY + thH / 2);
+  ctx.textAlign = "center"; ctx.font = `900 27px ${fontBase}`; ctx.fillStyle = "#facc15";
+  ctx.fillText("R", tX + colRoundW / 2, tY + thH / 2);
   for (let c = 0; c < numCourts; c++) ctx.fillText(courts[c], colXs[1 + c] + colCourtW / 2, tY + thH / 2);
   if (hasRest) ctx.fillText("休憩", colXs[1 + numCourts] + colRestW / 2, tY + thH / 2);
 
   let curY = tY + thH;
   cur().schedule.forEach((item, idx) => {
-    const rH = rowHeights[idx]; if (idx % 2 === 1) { ctx.fillStyle = "rgba(56,189,248,0.07)"; ctx.fillRect(tX, curY, tableW, rH); }
-    ctx.font = `700 22px ${fontBase}`; ctx.fillStyle = "#fff"; ctx.fillText(`第${item.r}R`, tX + colRoundW / 2, curY + rH / 2);
+    const rH = rowHeights[idx];
+    if (idx % 2 === 1) { ctx.fillStyle = "#f1f5f9"; ctx.fillRect(tX, curY, tableW, rH); }
+    ctx.font = `900 28px ${fontBase}`; ctx.fillStyle = "#0284c7";
+    ctx.fillText(`R${item.r}`, tX + colRoundW / 2, curY + rH / 2);
+
     const placedCols = new Set();
     item.matches.forEach(m => {
       const cIdx = courts.indexOf(m.court); if (cIdx < 0) return; placedCols.add(cIdx);
-      const cx = colXs[1 + cIdx] + colCourtW / 2, ch = showCh ? getChallengeInfo(m.p1, m.p2) : null, cy = ch ? (curY + rH / 2 - 11) : (curY + rH / 2);
+      const cx = colXs[1 + cIdx] + colCourtW / 2, ch = showCh ? getChallengeInfo(m.p1, m.p2) : null;
+      const cy = ch ? (curY + rH / 2 - 13) : (curY + rH / 2);
       const txt = `${isTeam ? "[紅]" : ""}${m.p1[0]}・${m.p1[1]}  vs  ${isTeam ? "[白]" : ""}${m.p2[0]}・${m.p2[1]}`;
-      let fs = isNum ? 26 : 22; ctx.font = `700 ${fs}px ${fontBase}`;
-      while (ctx.measureText(txt).width > colCourtW - 22 && fs > 13) { fs--; ctx.font = `700 ${fs}px ${fontBase}`; }
-      ctx.fillStyle = "#fff"; ctx.fillText(txt, cx, cy);
-      if (ch) { ctx.font = `italic 800 13px ${fontBase}`; ctx.fillStyle = ch.level === 3 ? "#fda4af" : (ch.level === 2 ? "#fde68a" : "#7dd3fc"); ctx.fillText(`${ch.label} ${ch.stars}`, cx, curY + rH - 16); }
+      let fs = isNum ? 34 : 28; ctx.font = `800 ${fs}px ${fontBase}`;
+      while (ctx.measureText(txt).width > colCourtW - 28 && fs > 17) { fs--; ctx.font = `800 ${fs}px ${fontBase}`; }
+      ctx.fillStyle = "#0f172a"; ctx.fillText(txt, cx, cy);
+      if (ch) {
+        ctx.font = `italic 900 16px ${fontBase}`;
+        ctx.fillStyle = ch.level === 3 ? "#e11d48" : (ch.level === 2 ? "#d97706" : "#0284c7");
+        ctx.fillText(`${ch.label} ${ch.stars}`, cx, curY + rH - 18);
+      }
     });
-    for (let c = 0; c < numCourts; c++) if (!placedCols.has(c)) { ctx.font = `700 20px ${fontBase}`; ctx.fillStyle = "#64748b"; ctx.fillText("—", colXs[1 + c] + colCourtW / 2, curY + rH / 2); }
-    if (hasRest) {
-      const rx = colXs[1 + numCourts] + colRestW / 2, lines = wrapTextLines(ctx, (item.rest && item.rest.length) ? item.rest.join("・") : "なし", colRestW - 24);
-      ctx.font = `700 20px ${fontBase}`; ctx.fillStyle = "#cbd5e1"; const sy = curY + rH / 2 - ((lines.length - 1) * 26) / 2;
-      lines.forEach((ln, li) => ctx.fillText(ln, rx, sy + li * 26));
+    for (let c = 0; c < numCourts; c++) if (!placedCols.has(c)) {
+      ctx.font = `700 24px ${fontBase}`; ctx.fillStyle = "#94a3b8";
+      ctx.fillText("—", colXs[1 + c] + colCourtW / 2, curY + rH / 2);
     }
-    ctx.strokeStyle = "rgba(148,163,184,0.45)"; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(tX, curY); ctx.lineTo(tX + tableW, curY); ctx.stroke();
+    if (hasRest) {
+      const rx = colXs[1 + numCourts] + colRestW / 2;
+      const lines = wrapTextLines(ctx, (item.rest && item.rest.length) ? item.rest.join("・") : "なし", colRestW - 28);
+      ctx.font = `700 24px ${fontBase}`; ctx.fillStyle = "#475569";
+      const sy = curY + rH / 2 - ((lines.length - 1) * 32) / 2;
+      lines.forEach((ln, li) => ctx.fillText(ln, rx, sy + li * 32));
+    }
+    ctx.strokeStyle = "#cbd5e1"; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(tX, curY); ctx.lineTo(tX + tableW, curY); ctx.stroke();
     curY += rH;
   });
+  ctx.strokeStyle = "#94a3b8"; ctx.lineWidth = 2.5;
   ctx.strokeRect(tX, tY, tableW, tH);
-  for (let i = 1; i < colXs.length - 1; i++) { ctx.beginPath(); ctx.moveTo(colXs[i], tY); ctx.lineTo(colXs[i], tY + tH); ctx.stroke(); }
+  for (let i = 1; i < colXs.length - 1; i++) {
+    ctx.beginPath(); ctx.moveTo(colXs[i], tY); ctx.lineTo(colXs[i], tY + tH); ctx.stroke();
+  }
   return canvas.toDataURL("image/png");
 }
 
 document.getElementById("chkReportIncludeMatches").onchange = (e) => { appState.reportIncludeMatches = e.target.checked; saveState(); };
 document.getElementById("btnSaveReportImage").onclick = () => {
   try {
-    const url = generateResultReportImage();
-    document.getElementById("reportImgPreview").src = url; document.getElementById("reportImgPreviewWrap").style.display = "block";
-    const a = document.createElement("a"); a.href = url; a.download = `badminton_report_${cur().date || todayStr()}.png`; a.click();
-    showToast("結果レポート画像を作成しました！");
+    const pages = generateResultReportImages();
+    const listEl = document.getElementById("reportImgList");
+    const dateTag = cur().date || todayStr();
+    listEl.innerHTML = "";
+    document.getElementById("reportImgSummaryNote").textContent = `全 ${pages.length}枚の結果レポート画像を作成しました（長押し・個別ボタンで保存可能）`;
+
+    if (pages.length > 1) {
+      const allBtn = document.createElement("button");
+      allBtn.className = "action-btn btn-primary btn-small";
+      allBtn.textContent = `📥 全 ${pages.length}枚をまとめてダウンロード`;
+      allBtn.onclick = () => {
+        pages.forEach((pg, idx) => {
+          setTimeout(() => {
+            const a = document.createElement("a");
+            a.href = pg.dataUrl;
+            a.download = `matchflow_report_${dateTag}_p${idx + 1}.png`;
+            a.click();
+          }, idx * 250);
+        });
+        showToast(`全 ${pages.length}枚の保存を開始しました`);
+      };
+      listEl.appendChild(allBtn);
+    }
+
+    pages.forEach((pg, idx) => {
+      const wrap = document.createElement("div");
+      wrap.style.cssText = "background:rgba(15,23,42,0.45);padding:10px;border-radius:12px;border:1px solid var(--border);";
+      wrap.innerHTML = `
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;gap:8px;">
+          <span style="font-size:12px;font-weight:800;color:var(--gold);">${idx + 1}/${pages.length}枚目：${pg.title}</span>
+          <button class="action-btn btn-secondary btn-small" data-dlpg="${idx}">この画像を保存</button>
+        </div>
+        <img src="${pg.dataUrl}" alt="${pg.title}">`;
+      wrap.querySelector(`[data-dlpg="${idx}"]`).onclick = () => {
+        const a = document.createElement("a");
+        a.href = pg.dataUrl;
+        a.download = `matchflow_report_${dateTag}_p${idx + 1}.png`;
+        a.click();
+      };
+      listEl.appendChild(wrap);
+    });
+
+    document.getElementById("reportImgPreviewWrap").style.display = "block";
+    showToast(`結果レポート画像（全${pages.length}枚）を作成しました！`);
   } catch (e) { alert(e.message); }
 };
 document.getElementById("chkChallengeEffect").onchange = (e) => { appState.showChallenge = e.target.checked; saveState(); renderRounds(); renderExportPreview(); };
 document.getElementById("btnSaveImage").onclick = () => {
   const url = generateScheduleImage();
   document.getElementById("scheduleImgPreview").src = url; document.getElementById("imgPreviewWrap").style.display = "block";
-  const a = document.createElement("a"); a.href = url; a.download = `badminton_schedule_${cur().date || todayStr()}.png`; a.click();
+  const a = document.createElement("a"); a.href = url; a.download = `matchflow_schedule_${cur().date || todayStr()}.png`; a.click();
   showToast("対戦表画像を作成しました！");
 };
 
@@ -3489,7 +3868,7 @@ document.getElementById("btnDownloadCsv").onclick = () => {
 };
 document.getElementById("btnBackupJson").onclick = () => {
   const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([JSON.stringify(appState, null, 2)], { type: "application/json" }));
-  a.download = `badminton_backup_v10_${todayStr()}.json`; a.click(); showToast("バックアップを保存しました");
+  a.download = `matchflow_backup_${todayStr()}.json`; a.click(); showToast("バックアップを保存しました");
 };
 document.getElementById("btnRestoreJson").onclick = () => document.getElementById("inpRestoreFile").click();
 document.getElementById("inpRestoreFile").onchange = (e) => {
@@ -3575,7 +3954,7 @@ const optStep = !!document.getElementById("chkPptxStepByStep")?.checked;
 
   const pptx = new PptxGenJS();
   pptx.layout = "LAYOUT_16x9";
-  pptx.author = "Badminton Manager";
+  pptx.author = "MatchFlow";
   pptx.title = `${cfg.title} 結果発表`;
 
   const F_JP = "Meiryo";
