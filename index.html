@@ -39,26 +39,41 @@
   }
   .header-top { display: flex; justify-content: space-between; align-items: center; gap: 6px; }
   h1 {
-    margin: 0; font-size: 14px; font-weight: 800; color: var(--gold);
-    letter-spacing: 0.02em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1;
+    margin: 0; font-size: 15px; font-weight: 900; color: var(--gold);
+    letter-spacing: 0.03em; white-space: nowrap; flex-shrink: 0;
   }
-  .header-right { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+  .header-right { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
   .progress-badge {
-    font-size: 11px; font-weight: 700; background: var(--surface-2); color: var(--accent);
-    padding: 3px 8px; border-radius: 999px; border: 1px solid var(--border); white-space: nowrap;
+    font-size: 10px; font-weight: 800; background: var(--surface-2); color: var(--accent);
+    padding: 4px 7px; border-radius: 999px; border: 1px solid var(--border); white-space: nowrap;
+  }
+  .next-r-btn {
+    font-size: 10px; font-weight: 800; padding: 4px 8px; border-radius: 999px;
+    border: 1px solid rgba(34, 197, 94, 0.65); background: rgba(34, 197, 94, 0.2); color: #86efac;
+    cursor: pointer; white-space: nowrap; transition: all 0.15s;
+  }
+  .next-r-btn.all-done {
+    border-color: var(--border); background: var(--surface-2); color: var(--text-muted);
   }
   .privacy-btn {
-    font-size: 10px; font-weight: 800; padding: 4px 8px; border-radius: 999px;
+    font-size: 10px; font-weight: 800; padding: 4px 7px; border-radius: 999px;
     border: 1px solid var(--border); background: var(--surface-2); color: var(--text-muted);
     cursor: pointer; white-space: nowrap; transition: all 0.15s;
   }
   .privacy-btn.hidden-on { background: rgba(245, 158, 11, 0.22); color: #fde68a; border-color: var(--amber); }
   .undo-btn {
-    font-size: 10px; font-weight: 800; padding: 4px 8px; border-radius: 999px;
+    font-size: 10px; font-weight: 800; padding: 4px 7px; border-radius: 999px;
     border: 1px solid rgba(56, 189, 248, 0.55); background: rgba(56, 189, 248, 0.16); color: var(--accent);
     cursor: pointer; white-space: nowrap; transition: all 0.15s;
   }
   .undo-btn:disabled { opacity: 0.35; cursor: default; border-color: var(--border); background: var(--surface-2); color: var(--text-muted); }
+  .gemini-status-box {
+    background: rgba(16, 185, 129, 0.14); border: 1px solid rgba(52, 211, 153, 0.5);
+    border-radius: 10px; padding: 9px 11px; margin-bottom: 10px; font-size: 12px; color: #d1fae5;
+    display: none;
+  }
+  .gemini-status-box .gs-title { font-weight: 800; color: #6ee7b7; margin-bottom: 3px; }
+  .gemini-divider { border: none; border-top: 1px solid rgba(58, 80, 107, 0.65); margin: 14px 0 12px; }
   .chart-canvas-wrap { margin: 8px 0 10px; }
   .chart-canvas-wrap canvas { width: 100%; height: auto; display: block; border-radius: 10px; background: var(--bg); border: 1px solid var(--border); }
   .regen-court-row { display: grid; grid-template-columns: 1fr auto auto; gap: 6px; align-items: center; }
@@ -356,6 +371,7 @@
   <div class="header-top">
     <h1 id="headerTitle">MatchFlow</h1>
     <div class="header-right">
+      <button class="next-r-btn" id="btnNextUnplayed" title="未入力のラウンドへ移動">▶ 次R</button>
       <button class="undo-btn" id="btnUndo" disabled title="直前の操作を元に戻す">↩ 戻す</button>
       <button class="privacy-btn" id="btnTogglePrivacy">レート表示</button>
       <div class="progress-badge" id="progressBadge">0 / 30</div>
@@ -804,11 +820,12 @@
 
     <div class="card-box">
       <h2>試合結果レポート画像（参加者共有用）</h2>
+      <p class="note">試合総合結果・ベストペア・AI分析ハイライトは個別ダウンロード可能。試合スコア一覧は分割せず1枚にまとめて出力します。</p>
       <label class="toggle-row">
-        <span>全試合のスコア一覧もレポートに含める</span>
+        <span>全試合のスコア一覧（1枚まとめ・注目試合コメント反映）を含める</span>
         <input type="checkbox" id="chkReportIncludeMatches">
       </label>
-      <button class="action-btn btn-emerald" id="btnSaveReportImage">試合結果レポート画像（PNG）を作成（自動複数枚対応）</button>
+      <button class="action-btn btn-emerald" id="btnSaveReportImage">試合結果レポート画像（PNG）を作成</button>
       <div class="img-preview-wrap" id="reportImgPreviewWrap">
         <p class="note" id="reportImgSummaryNote" style="margin-bottom:8px;">結果レポート画像プレビュー（各画像を長押しでも保存できます）</p>
         <div id="reportImgList" style="display:flex;flex-direction:column;gap:14px;"></div>
@@ -861,7 +878,7 @@
     </div>
 
     <div class="card-box">
-      <h2>Gemini分析用データ出力</h2>
+      <h2>Gemini分析用データ出力・結果読込</h2>
       <div class="seg-bar">
         <button class="seg-btn active" data-exscope="current">今回の試合のみ</button>
         <button class="seg-btn" data-exscope="all">全期間（履歴＋今回）</button>
@@ -869,6 +886,16 @@
       <button class="action-btn btn-primary" id="btnCopyGemini">Gemini分析用プロンプト＆データをコピー</button>
       <button class="action-btn btn-secondary" id="btnDownloadCsv">CSVファイルで保存（Excel対応）</button>
       <textarea class="export-textarea" id="exportPreview" readonly></textarea>
+
+      <hr class="gemini-divider">
+      <h3 style="margin-top:0;">Gemini分析結果の読込（試合結果レポートへ反映）</h3>
+      <p class="note">Geminiの回答をそのまま貼り付けて読み込むと、試合結果レポートに「AI分析ハイライト」ページと注目試合への直接コメントが反映されます。</p>
+      <div class="gemini-status-box" id="geminiImportStatus"></div>
+      <textarea class="export-textarea" id="inpGeminiResult" style="height:130px;margin-bottom:8px;" placeholder="Geminiの分析回答（JSONブロックを含む全文、またはJSONのみ）をそのまま貼り付けてください..."></textarea>
+      <div class="btn-row" style="margin-bottom:0;">
+        <button class="action-btn btn-emerald btn-small" id="btnImportGemini" style="flex:1;padding:11px 10px;font-size:13px;">📥 分析結果を読み込む</button>
+        <button class="action-btn btn-danger btn-small" id="btnClearGemini" style="padding:11px 12px;font-size:12px;">読込クリア</button>
+      </div>
     </div>
 
     <div class="card-box">
@@ -993,7 +1020,8 @@ const DEFAULT_SESSION = {
     { r: 14, matches: [{ court: "10番コート", p1: ["選手7","選手8"], p2: ["選手2","選手6"] },   { court: "11番コート", p1: ["選手1","選手3"], p2: ["選手4","選手5"] }], rest: [] },
     { r: 15, matches: [{ court: "10番コート", p1: ["選手1","選手8"], p2: ["選手5","選手6"] },   { court: "11番コート", p1: ["選手2","選手4"], p2: ["選手3","選手7"] }], rest: [] }
   ],
-  scores: {}
+  scores: {},
+  geminiAnalysis: null
 };
 
 let appState = {
@@ -1043,7 +1071,11 @@ function ensureV9Fields(state) {
     if (!Array.isArray(cfg.reservedMatches)) cfg.reservedMatches = [];
   };
   fixCfg(state.current.config);
-  state.history.forEach(h => fixCfg(h.config));
+  if (state.current.geminiAnalysis === undefined) state.current.geminiAnalysis = null;
+  state.history.forEach(h => {
+    fixCfg(h.config);
+    if (h.geminiAnalysis === undefined) h.geminiAnalysis = null;
+  });
   if (!state.draftTeams) state.draftTeams = deepClone(state.current.config.teams);
   if (!Array.isArray(state.memberMaster)) state.memberMaster = [...(state.current.config.players || DEFAULT_PLAYERS)];
   if (!state.memberTeams || typeof state.memberTeams !== "object") state.memberTeams = {};
@@ -1989,8 +2021,7 @@ function renderAll() {
   refreshRatingsCache();
   applyPrivacyUI();
   updateUndoBtn();
-  const mTag = isCurNumberMode() ? " [番号のみ]" : (isCurTeamMode() ? " [紅白戦]" : "");
-  document.getElementById("headerTitle").textContent = `MatchFlow｜${cur().config.title}${mTag}（${cur().date}）`;
+  document.getElementById("headerTitle").textContent = "MatchFlow";
   document.getElementById("chkChallengeEffect").checked = !!appState.showChallenge;
   document.getElementById("chkReportIncludeMatches").checked = !!appState.reportIncludeMatches;
   renderScoreToolbar();
@@ -2004,6 +2035,7 @@ function renderAll() {
   renderHistoryTab();
   renderFeeCalculator();
   renderExportPreview();
+  renderGeminiImportStatus();
 }
 
 function renderScoreToolbar() {
@@ -2213,11 +2245,62 @@ function updateUIKeepScroll() {
   window.scrollTo(0, y);
 }
 
+function findFirstUnplayedRound() {
+  if (isCurNumberMode()) return null;
+  const sess = cur();
+  for (const item of sess.schedule) {
+    if (item.matches.some((_, idx) => !isMatchValidOf(sess, matchId(item.r, idx)))) {
+      return item.r;
+    }
+  }
+  return null;
+}
+
 function updateProgress() {
   const badge = document.getElementById("progressBadge");
-  if (isCurNumberMode()) badge.textContent = `番号 ${cur().config.players.length}名`;
-  else { const { done, total } = countValidMatches(cur()); badge.textContent = `${done} / ${total}`; }
+  const nextBtn = document.getElementById("btnNextUnplayed");
+  if (isCurNumberMode()) {
+    badge.textContent = `番号 ${cur().config.players.length}名`;
+    if (nextBtn) nextBtn.style.display = "none";
+  } else {
+    const { done, total } = countValidMatches(cur());
+    badge.textContent = `${done} / ${total}`;
+    if (nextBtn) {
+      nextBtn.style.display = "";
+      const nextR = findFirstUnplayedRound();
+      if (nextR !== null) {
+        nextBtn.textContent = `▶ 次R`;
+        nextBtn.title = `未入力の第${nextR}ラウンドへ移動`;
+        nextBtn.classList.remove("all-done");
+      } else {
+        nextBtn.textContent = `✓ 完了`;
+        nextBtn.title = "全試合のスコアが入力済みです";
+        nextBtn.classList.add("all-done");
+      }
+    }
+  }
 }
+
+document.getElementById("btnNextUnplayed").onclick = () => {
+  if (isCurNumberMode()) return;
+  const nextR = findFirstUnplayedRound();
+  if (nextR === null) {
+    showToast("全試合のスコアが入力済みです！");
+    return;
+  }
+  const inputTabBtn = document.querySelector('.tab-btn[data-tab="input"]');
+  const inputPanel = document.getElementById("tab-input");
+  if (inputTabBtn && inputPanel && !inputPanel.classList.contains("active")) {
+    inputTabBtn.click();
+  }
+  setTimeout(() => {
+    const el = document.getElementById(`round-${nextR}`);
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
+      showToast(`第${nextR}ラウンドへ移動しました`);
+    }
+  }, 40);
+};
 
 // ==========================================
 // MANUAL MATCH EDIT MODAL & REGEN MODAL
@@ -2932,7 +3015,7 @@ if (selectedGenMode === "team") assignDefaultPredictions(newSchedule, cachedRati
         teams: selectedGenMode === "team" ? deepClone(appState.draftTeams) : { red: [], white: [] },
         matchPoints: selectedSetupPts
       },
-      schedule: newSchedule, scores: {}
+      schedule: newSchedule, scores: {}, geminiAnalysis: null
     };
     appState.feeConfig.normalCnt = players.length;
     appState.feeConfig.discountCnt = 0;
@@ -3397,6 +3480,31 @@ function wrapTextLines(ctx, text, maxW) {
   for (const t of tokens) { const test = line ? `${line}・${t}` : t; if (ctx.measureText(test).width > maxW && line) { lines.push(line); line = t; } else line = test; }
   if (line) lines.push(line); return lines;
 }
+function wrapJpTextLines(ctx, text, maxW, maxLines = 0) {
+  const paragraphs = String(text || "").split(/\r?\n/);
+  const lines = [];
+  for (const para of paragraphs) {
+    const trimmed = para.trim();
+    if (!trimmed) continue;
+    let line = "";
+    for (const ch of Array.from(trimmed)) {
+      const test = line + ch;
+      if (ctx.measureText(test).width > maxW && line) {
+        lines.push(line);
+        line = ch;
+        if (maxLines > 0 && lines.length >= maxLines) break;
+      } else {
+        line = test;
+      }
+    }
+    if (line && (maxLines === 0 || lines.length < maxLines)) lines.push(line);
+    if (maxLines > 0 && lines.length >= maxLines) break;
+  }
+  if (maxLines > 0 && lines.length > maxLines) {
+    lines.length = maxLines;
+  }
+  return lines;
+}
 function drawRoundedRect(ctx, x, y, w, h, r) {
   ctx.beginPath(); ctx.moveTo(x + r, y); ctx.lineTo(x + w - r, y); ctx.quadraticCurveTo(x + w, y, x + w, y + r);
   ctx.lineTo(x + w, y + h - r); ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h); ctx.lineTo(x + r, y + h);
@@ -3416,23 +3524,60 @@ function drawLightBackground(ctx, W, H) {
   ctx.fillRect(0, 140, W, 8);
 }
 
+function findHighlightForMatch(analysis, m, roundMatchCount) {
+  if (!analysis || !Array.isArray(analysis.highlightMatches)) return null;
+  const normCourt = (s) => String(s || "").replace(/\s+/g, "").toLowerCase();
+  const parseR = (v) => {
+    if (typeof v === "number" && !isNaN(v)) return v;
+    const mt = String(v || "").match(/\d+/);
+    return mt ? parseInt(mt[0], 10) : NaN;
+  };
+  // 1. matchId exact match
+  for (const hm of analysis.highlightMatches) {
+    if (hm.matchId && String(hm.matchId).trim().toLowerCase() === String(m.id || "").toLowerCase()) {
+      return hm;
+    }
+  }
+  // 2. round + court match
+  for (const hm of analysis.highlightMatches) {
+    const hr = parseR(hm.round);
+    if (hr === m.r && hm.court && normCourt(hm.court) === normCourt(m.court)) {
+      return hm;
+    }
+  }
+  // 3. round only (when only 1 match in that round)
+  if (roundMatchCount === 1) {
+    for (const hm of analysis.highlightMatches) {
+      if (parseR(hm.round) === m.r) return hm;
+    }
+  }
+  return null;
+}
+
 function generateResultReportImages() {
   if (isCurNumberMode()) throw new Error("番号のみモードは結果レポート画像を作成できません。");
   refreshRatingsCache();
   const sess = cur(), { pMap, pairMap, totalValidMatches } = aggregateStats([sess]);
   if (totalValidMatches === 0) throw new Error("スコアが入力された試合がまだありません。");
   const showRate = !appState.hideRatings, includeMatches = !!appState.reportIncludeMatches, isTeamSess = (sess.config.mode === "team");
+  const analysis = sess.geminiAnalysis || null;
   const fontBase = '"Hiragino Kaku Gothic ProN", "Noto Sans JP", Meiryo, sans-serif';
   const pList = Object.values(pMap).filter(p => p.games > 0).sort((a, b) => (b.wins / b.games) - (a.wins / a.games) || (b.pf - b.pa) - (a.pf - a.pa));
   const topPairs = Object.values(pairMap).sort((a, b) => (b.wins / b.games) - (a.wins / a.games) || ((b.pf - b.pa) / b.games) - ((a.pf - a.pa) / a.games)).slice(0, 8);
   const completedMatches = [];
-  sess.schedule.forEach(item => item.matches.forEach((m, idx) => {
-    const id = matchId(item.r, idx);
-    if (isMatchValidOf(sess, id)) {
-      const sc = getScoreOf(sess, id);
-      completedMatches.push({ r: item.r, court: m.court, p1: m.p1, p2: m.p2, s1: Number(sc.s1), s2: Number(sc.s2) });
-    }
-  }));
+  const roundCounts = {};
+  sess.schedule.forEach(item => {
+    let cnt = 0;
+    item.matches.forEach((m, idx) => {
+      const id = matchId(item.r, idx);
+      if (isMatchValidOf(sess, id)) {
+        cnt++;
+        const sc = getScoreOf(sess, id);
+        completedMatches.push({ id, r: item.r, court: m.court, p1: m.p1, p2: m.p2, s1: Number(sc.s1), s2: Number(sc.s2) });
+      }
+    });
+    roundCounts[item.r] = cnt;
+  });
 
   const pages = [];
   const W = 1200, padX = 48, contentW = W - padX * 2;
@@ -3448,8 +3593,8 @@ function generateResultReportImages() {
     ctx.fillText("MatchFlow", W - padX, 54);
   };
 
-  const drawSecTitle = (ctx, y, title) => {
-    ctx.fillStyle = "#0d9488";
+  const drawSecTitle = (ctx, y, title, barColor = "#0d9488") => {
+    ctx.fillStyle = barColor;
     ctx.fillRect(padX, y + 6, 8, 32);
     ctx.textAlign = "left"; ctx.textBaseline = "middle";
     ctx.font = `900 30px ${fontBase}`; ctx.fillStyle = "#0f172a";
@@ -3470,7 +3615,7 @@ function generateResultReportImages() {
     }
   }
 
-  playerChunks.forEach((chunk, cIdx) => {
+  playerChunks.forEach((chunk) => {
     const teamBannerH = (chunk.isFirst && isTeamSess) ? 185 : 0;
     const awardsH = chunk.isFirst ? 156 : 0;
     const thH = 56, rowH = 62;
@@ -3497,7 +3642,6 @@ function generateResultReportImages() {
       ctx.font = `900 28px ${fontBase}`; ctx.fillStyle = ts.winner === "red" ? "#dc2626" : "#0f172a";
       ctx.fillText(`紅白戦 チーム結果 【 ${wLbl} 】`, W / 2, y + 36);
 
-      // Red box
       drawRoundedRect(ctx, padX + 24, y + 66, contentW * 0.41, 96, 12);
       ctx.fillStyle = "#fef2f2"; ctx.fill(); ctx.strokeStyle = "#dc2626"; ctx.lineWidth = 2.5; ctx.stroke();
       ctx.font = `900 38px ${fontBase}`; ctx.fillStyle = "#dc2626";
@@ -3508,7 +3652,6 @@ function generateResultReportImages() {
       ctx.font = `900 32px ${fontBase}`; ctx.fillStyle = "#f59e0b";
       ctx.fillText("VS", W / 2, y + 114);
 
-      // White box
       const wx = W - padX - 24 - contentW * 0.41;
       drawRoundedRect(ctx, wx, y + 66, contentW * 0.41, 96, 12);
       ctx.fillStyle = "#f1f5f9"; ctx.fill(); ctx.strokeStyle = "#475569"; ctx.lineWidth = 2.5; ctx.stroke();
@@ -3583,7 +3726,7 @@ function generateResultReportImages() {
       });
     });
 
-    pages.push({ title: `結果レポート（個人成績${rankRange}）`, dataUrl: canvas.toDataURL("image/png") });
+    pages.push({ title: `試合総合結果${rankRange}`, dataUrl: canvas.toDataURL("image/png") });
   });
 
   // --- NEXT PAGE: Best Pairs ---
@@ -3621,38 +3764,194 @@ function generateResultReportImages() {
         cx += prCols[i];
       });
     });
-    pages.push({ title: "結果レポート（ベストペア）", dataUrl: canvas.toDataURL("image/png") });
+    pages.push({ title: "ベストペア", dataUrl: canvas.toDataURL("image/png") });
   }
 
-  // --- OPTIONAL MATCH SCORE PAGES (10 matches per page, 2 cols x 5 rows) ---
-  if (includeMatches && completedMatches.length) {
-    const PER_PAGE = 10;
-    const totalMatchPages = Math.ceil(completedMatches.length / PER_PAGE);
-    for (let pg = 0; pg < totalMatchPages; pg++) {
-      const chunk = completedMatches.slice(pg * PER_PAGE, (pg + 1) * PER_PAGE);
-      const rows = Math.ceil(chunk.length / 2);
-      const cardH = 112, gapY = 18, gapX = 20;
-      const H = 180 + 52 + rows * cardH + Math.max(0, rows - 1) * gapY + 56;
+  // --- OPTIONAL PAGE: Gemini AI Analysis Highlights ---
+  if (analysis) {
+    const mCanvas = document.createElement("canvas");
+    const mCtx = mCanvas.getContext("2d");
 
-      const canvas = document.createElement("canvas"); canvas.width = W; canvas.height = H;
-      const ctx = canvas.getContext("2d"); drawLightBackground(ctx, W, H);
-      drawPageHeader(ctx, `${sess.config.title} 試合スコア一覧`, `${sess.date} ｜ 全 ${completedMatches.length}試合（${pg + 1} / ${totalMatchPages}）`);
+    const headline = (analysis.headline || "").trim();
+    const summary = (analysis.summary || "").trim();
+    const points = Array.isArray(analysis.points) ? analysis.points.filter(Boolean) : [];
+    const mvpComment = (analysis.mvpComment || "").trim();
+    const hlMatches = Array.isArray(analysis.highlightMatches) ? analysis.highlightMatches.filter(x => x && x.comment) : [];
 
-      const yStart = drawSecTitle(ctx, 176, `試合結果一覧（${pg * PER_PAGE + 1}〜${pg * PER_PAGE + chunk.length}試合目）`);
-      const mW = (contentW - gapX) / 2;
+    mCtx.font = `900 30px ${fontBase}`;
+    const hlLines = headline ? wrapJpTextLines(mCtx, headline, contentW - 64) : [];
+    const hlBoxH = hlLines.length ? (36 + hlLines.length * 42 + 24) : 0;
 
-      chunk.forEach((m, idx) => {
-        const mx = padX + (idx % 2) * (mW + gapX);
-        const my = yStart + Math.floor(idx / 2) * (cardH + gapY);
-        const w1 = m.s1 > m.s2, w2 = m.s2 > m.s1;
+    mCtx.font = `700 24px ${fontBase}`;
+    const sumLines = summary ? wrapJpTextLines(mCtx, summary, contentW - 56) : [];
+    const sumBoxH = sumLines.length ? (24 + sumLines.length * 36 + 24) : 0;
 
-        drawRoundedRect(ctx, mx, my, mW, cardH, 14);
+    mCtx.font = `700 24px ${fontBase}`;
+    const ptLayouts = points.map(pt => {
+      const lines = wrapJpTextLines(mCtx, pt, contentW - 96);
+      return { lines, h: Math.max(62, 20 + lines.length * 34 + 20) };
+    });
+
+    mCtx.font = `700 23px ${fontBase}`;
+    const mvpLines = mvpComment ? wrapJpTextLines(mCtx, mvpComment, contentW - 56) : [];
+    const mvpBoxH = mvpLines.length ? (56 + mvpLines.length * 34 + 20) : 0;
+
+    mCtx.font = `700 22px ${fontBase}`;
+    const hmLayouts = hlMatches.map(hm => {
+      const matched = completedMatches.find(cm => findHighlightForMatch({ highlightMatches: [hm] }, cm, roundCounts[cm.r]));
+      const meta = matched
+        ? `第${matched.r}R ${matched.court}：${matched.p1.join("・")} ${matched.s1}-${matched.s2} ${matched.p2.join("・")}`
+        : `第${hm.round || "?"}R ${hm.court || ""}`;
+      const cLines = wrapJpTextLines(mCtx, hm.comment, contentW - 56);
+      return { tag: hm.tag || "注目試合", meta, cLines, h: 52 + cLines.length * 32 + 20 };
+    });
+
+    let totalH = 180;
+    if (hlBoxH) totalH += hlBoxH + 22;
+    if (sumBoxH) totalH += 52 + sumBoxH + 24;
+    if (ptLayouts.length) totalH += 52 + ptLayouts.reduce((a, b) => a + b.h + 12, 0) + 14;
+    if (mvpBoxH) totalH += 52 + mvpBoxH + 24;
+    if (hmLayouts.length) totalH += 52 + hmLayouts.reduce((a, b) => a + b.h + 12, 0) + 12;
+    totalH += 44;
+
+    const canvas = document.createElement("canvas"); canvas.width = W; canvas.height = totalH;
+    const ctx = canvas.getContext("2d"); drawLightBackground(ctx, W, totalH);
+    drawPageHeader(ctx, `${sess.config.title} AI分析ハイライト`, `${sess.date} ｜ Gemini Analysis Summary`);
+
+    let y = 176;
+    if (hlBoxH) {
+      drawRoundedRect(ctx, padX, y, contentW, hlBoxH, 16);
+      ctx.fillStyle = "#0f172a"; ctx.fill();
+      ctx.strokeStyle = "#f59e0b"; ctx.lineWidth = 3; ctx.stroke();
+      ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.font = `900 30px ${fontBase}`; ctx.fillStyle = "#facc15";
+      hlLines.forEach((ln, i) => ctx.fillText(ln, W / 2, y + 36 + i * 42 + 12));
+      y += hlBoxH + 22;
+    }
+
+    if (sumBoxH) {
+      y = drawSecTitle(ctx, y, "本日の総評", "#0284c7");
+      drawRoundedRect(ctx, padX, y, contentW, sumBoxH, 14);
+      ctx.fillStyle = "#ffffff"; ctx.fill(); ctx.strokeStyle = "#cbd5e1"; ctx.lineWidth = 2; ctx.stroke();
+      ctx.textAlign = "left"; ctx.textBaseline = "middle";
+      ctx.font = `700 24px ${fontBase}`; ctx.fillStyle = "#1e293b";
+      sumLines.forEach((ln, i) => ctx.fillText(ln, padX + 28, y + 24 + i * 36 + 16));
+      y += sumBoxH + 24;
+    }
+
+    if (ptLayouts.length) {
+      y = drawSecTitle(ctx, y, "分析ポイント", "#0d9488");
+      ptLayouts.forEach((pt, idx) => {
+        drawRoundedRect(ctx, padX, y, contentW, pt.h, 12);
         ctx.fillStyle = "#ffffff"; ctx.fill(); ctx.strokeStyle = "#cbd5e1"; ctx.lineWidth = 2; ctx.stroke();
+        // Number badge
+        drawRoundedRect(ctx, padX + 18, y + (pt.h - 38) / 2, 38, 38, 10);
+        ctx.fillStyle = "#0d9488"; ctx.fill();
+        ctx.textAlign = "center"; ctx.textBaseline = "middle";
+        ctx.font = `900 22px ${fontBase}`; ctx.fillStyle = "#ffffff";
+        ctx.fillText(String(idx + 1), padX + 37, y + pt.h / 2);
+
+        ctx.textAlign = "left"; ctx.textBaseline = "middle";
+        ctx.font = `700 24px ${fontBase}`; ctx.fillStyle = "#0f172a";
+        const textStartY = y + (pt.h - pt.lines.length * 34) / 2 + 17;
+        pt.lines.forEach((ln, i) => ctx.fillText(ln, padX + 74, textStartY + i * 34));
+        y += pt.h + 12;
+      });
+      y += 14;
+    }
+
+    if (mvpBoxH) {
+      y = drawSecTitle(ctx, y, "注目選手・MVPコメント", "#7c3aed");
+      drawRoundedRect(ctx, padX, y, contentW, mvpBoxH, 14);
+      ctx.fillStyle = "#f5f3ff"; ctx.fill(); ctx.strokeStyle = "#8b5cf6"; ctx.lineWidth = 2.5; ctx.stroke();
+      ctx.textAlign = "left"; ctx.textBaseline = "middle";
+      ctx.font = `900 20px ${fontBase}`; ctx.fillStyle = "#6d28d9";
+      ctx.fillText("👑 PLAYER PICKUP", padX + 28, y + 28);
+      ctx.font = `700 23px ${fontBase}`; ctx.fillStyle = "#1e293b";
+      mvpLines.forEach((ln, i) => ctx.fillText(ln, padX + 28, y + 58 + i * 34 + 12));
+      y += mvpBoxH + 24;
+    }
+
+    if (hmLayouts.length) {
+      y = drawSecTitle(ctx, y, "注目試合ピックアップ", "#d97706");
+      hmLayouts.forEach(hm => {
+        drawRoundedRect(ctx, padX, y, contentW, hm.h, 12);
+        ctx.fillStyle = "#fffbeb"; ctx.fill(); ctx.strokeStyle = "#f59e0b"; ctx.lineWidth = 2.5; ctx.stroke();
+        ctx.textAlign = "left"; ctx.textBaseline = "middle";
+        ctx.font = `900 20px ${fontBase}`; ctx.fillStyle = "#b45309";
+        ctx.fillText(`★ ${hm.tag} ｜ ${hm.meta}`, padX + 24, y + 28);
+        ctx.font = `700 22px ${fontBase}`; ctx.fillStyle = "#1e293b";
+        hm.cLines.forEach((ln, i) => ctx.fillText(ln, padX + 24, y + 56 + i * 32 + 12));
+        y += hm.h + 12;
+      });
+    }
+
+    pages.push({ title: "AI分析ハイライト", dataUrl: canvas.toDataURL("image/png") });
+  }
+
+  // --- OPTIONAL MATCH SCORE PAGE (SINGLE COMBINED IMAGE - NO PAGE SPLIT) ---
+  if (includeMatches && completedMatches.length) {
+    const gapY = 18, gapX = 20;
+    const mW = (contentW - gapX) / 2;
+    const baseCardH = 112;
+
+    const mCanvas = document.createElement("canvas");
+    const mCtx = mCanvas.getContext("2d");
+    mCtx.font = `700 18px ${fontBase}`;
+
+    const enriched = completedMatches.map(m => {
+      const hl = findHighlightForMatch(analysis, m, roundCounts[m.r]);
+      const commentLines = (hl && hl.comment) ? wrapJpTextLines(mCtx, hl.comment, mW - 36, 4) : [];
+      const needH = commentLines.length ? (baseCardH + 14 + commentLines.length * 25 + 14) : baseCardH;
+      return { ...m, hl, commentLines, needH };
+    });
+
+    const rowHeights = [];
+    for (let i = 0; i < enriched.length; i += 2) {
+      const leftH = enriched[i].needH;
+      const rightH = enriched[i + 1] ? enriched[i + 1].needH : 0;
+      rowHeights.push(Math.max(leftH, rightH));
+    }
+
+    const totalBodyH = rowHeights.reduce((a, b) => a + b, 0) + Math.max(0, rowHeights.length - 1) * gapY;
+    const H = 180 + 52 + totalBodyH + 56;
+
+    const canvas = document.createElement("canvas"); canvas.width = W; canvas.height = H;
+    const ctx = canvas.getContext("2d"); drawLightBackground(ctx, W, H);
+    drawPageHeader(ctx, `${sess.config.title} 試合スコア一覧`, `${sess.date} ｜ 全 ${completedMatches.length}試合（1枚まとめ）`);
+
+    const yStart = drawSecTitle(ctx, 176, `全試合スコア一覧（全${completedMatches.length}試合）`);
+
+    let curRowY = yStart;
+    for (let rIdx = 0; rIdx < rowHeights.length; rIdx++) {
+      const rH = rowHeights[rIdx];
+      for (let col = 0; col < 2; col++) {
+        const m = enriched[rIdx * 2 + col];
+        if (!m) continue;
+        const mx = padX + col * (mW + gapX);
+        const my = curRowY;
+        const w1 = m.s1 > m.s2, w2 = m.s2 > m.s1;
+        const isHl = !!(m.hl && m.commentLines.length);
+
+        drawRoundedRect(ctx, mx, my, mW, rH, 14);
+        ctx.fillStyle = isHl ? "#fffbeb" : "#ffffff"; ctx.fill();
+        ctx.strokeStyle = isHl ? "#f59e0b" : "#cbd5e1"; ctx.lineWidth = isHl ? 3 : 2; ctx.stroke();
 
         // Top meta
         ctx.textAlign = "left"; ctx.textBaseline = "middle";
-        ctx.font = `800 18px ${fontBase}`; ctx.fillStyle = "#0284c7";
+        ctx.font = `800 18px ${fontBase}`; ctx.fillStyle = isHl ? "#b45309" : "#0284c7";
         ctx.fillText(`第${m.r}R  ${m.court}`, mx + 16, my + 24);
+
+        // Highlight tag badge
+        if (isHl) {
+          const tagTxt = `★ ${m.hl.tag || "注目試合"}`;
+          ctx.font = `900 15px ${fontBase}`;
+          const tw = Math.min(mW * 0.52, ctx.measureText(tagTxt).width + 20);
+          drawRoundedRect(ctx, mx + mW - tw - 12, my + 10, tw, 28, 8);
+          ctx.fillStyle = "#f59e0b"; ctx.fill();
+          ctx.textAlign = "center"; ctx.fillStyle = "#ffffff";
+          ctx.fillText(tagTxt, mx + mW - tw / 2 - 12, my + 24);
+        }
 
         // Score center
         ctx.textAlign = "center";
@@ -3675,10 +3974,22 @@ function generateResultReportImages() {
         let fs2 = 22;
         while (ctx.measureText(p2Txt).width > sideW && fs2 > 15) { fs2--; ctx.font = `${w2 ? "900" : "700"} ${fs2}px ${fontBase}`; }
         ctx.fillText(p2Txt, mx + mW - 12 - sideW / 2, my + 70);
-      });
 
-      pages.push({ title: `試合スコア一覧 (${pg + 1}/${totalMatchPages})`, dataUrl: canvas.toDataURL("image/png") });
+        // Direct comment section inside highlighted match card
+        if (isHl) {
+          ctx.strokeStyle = "rgba(245, 158, 11, 0.45)"; ctx.lineWidth = 1.5;
+          ctx.beginPath(); ctx.moveTo(mx + 14, my + baseCardH - 2); ctx.lineTo(mx + mW - 14, my + baseCardH - 2); ctx.stroke();
+          ctx.textAlign = "left"; ctx.textBaseline = "middle";
+          ctx.font = `700 18px ${fontBase}`; ctx.fillStyle = "#78350f";
+          m.commentLines.forEach((ln, li) => {
+            ctx.fillText(ln, mx + 18, my + baseCardH + 14 + li * 25 + 6);
+          });
+        }
+      }
+      curRowY += rH + gapY;
     }
+
+    pages.push({ title: `試合スコア一覧（全${completedMatches.length}試合）`, dataUrl: canvas.toDataURL("image/png") });
   }
 
   return pages;
@@ -3835,17 +4146,152 @@ function buildScheduleShareText() {
 function buildGeminiText() {
   const sessions = getSessionsForScope(exportScope);
   if (!sessions.length) return "※分析対象データがありません。";
-  const lines = ["以下のバドミントンダブルスの試合結果を詳細に分析してください。", "開催日,タイトル,ルール,ラウンド,コート,ペアA,スコアA,スコアB,ペアB"];
+  const lines = [
+    "以下のバドミントンダブルスの試合結果を詳細に分析してください。",
+    "",
+    "【重要：アプリ読込用JSONの出力指定】",
+    "分析コメントの最後に、MatchFlowの試合結果レポートへ自動反映するため、必ず以下の形式のJSONブロック（```json ... ```）を1つ出力してください。",
+    "・highlightMatches には特に注目すべき試合（接戦・番狂わせ・好カード等）を2〜5試合選び、データ中の「試合ID」をそのまま指定してください。",
+    "```json",
+    "{",
+    '  "headline": "本日の総評キャッチコピー（25文字以内）",',
+    '  "summary": "全体の振り返り（2〜3文程度）",',
+    '  "points": [',
+    '    "分析ポイント1（簡潔に）",',
+    '    "分析ポイント2（簡潔に）",',
+    '    "分析ポイント3（簡潔に）"',
+    "  ],",
+    '  "mvpComment": "MVPや注目選手への一言コメント",',
+    '  "highlightMatches": [',
+    "    {",
+    '      "matchId": "r1_c0",',
+    '      "round": 1,',
+    '      "court": "10番コート",',
+    '      "tag": "ベストバウト",',
+    '      "comment": "注目理由を30〜50文字程度で簡潔に"',
+    "    }",
+    "  ]",
+    "}",
+    "```",
+    "",
+    "【試合データ】",
+    "試合ID,開催日,タイトル,ルール,ラウンド,コート,ペアA,スコアA,スコアB,ペアB"
+  ];
   sessions.forEach(sess => sess.schedule.forEach(item => item.matches.forEach((m, idx) => {
-    const sc = getScoreOf(sess, matchId(item.r, idx));
+    const id = matchId(item.r, idx);
+    const sc = getScoreOf(sess, id);
     if (exportScope === "all" && sc.s1 === "" && sc.s2 === "") return;
-    lines.push(`${sess.date || ""},${sess.config.title},${sess.config.matchPoints === 15 ? 15 : 21}点,R${item.r},${m.court},${m.p1[0]}・${m.p1[1]},${sc.s1 || "-"},${sc.s2 || "-"},${m.p2[0]}・${m.p2[1]}`);
+    lines.push(`${id},${sess.date || ""},${sess.config.title},${sess.config.matchPoints === 15 ? 15 : 21}点,R${item.r},${m.court},${m.p1[0]}・${m.p1[1]},${sc.s1 || "-"},${sc.s2 || "-"},${m.p2[0]}・${m.p2[1]}`);
   })));
   return lines.join("\n");
 }
+
+function parseGeminiAnalysisText(raw) {
+  const txt = String(raw || "").trim();
+  if (!txt) throw new Error("テキストが入力されていません。");
+
+  const candidates = [];
+  const fenceRe = /```(?:json)?\s*([\s\S]*?)```/gi;
+  let m;
+  while ((m = fenceRe.exec(txt)) !== null) {
+    if (m[1] && m[1].trim().startsWith("{")) candidates.push(m[1].trim());
+  }
+  candidates.reverse();
+
+  const firstBrace = txt.indexOf("{");
+  const lastBrace = txt.lastIndexOf("}");
+  if (firstBrace !== -1 && lastBrace > firstBrace) {
+    candidates.push(txt.slice(firstBrace, lastBrace + 1));
+  }
+
+  let parsed = null;
+  for (const cand of candidates) {
+    try {
+      const obj = JSON.parse(cand);
+      if (obj && typeof obj === "object" && !Array.isArray(obj)) {
+        parsed = obj;
+        break;
+      }
+    } catch (e) {}
+  }
+  if (!parsed) {
+    throw new Error("JSONブロックが見つからないか、形式が正しくありません。Geminiの回答に ```json ... ``` が含まれているか確認してください。");
+  }
+
+  const norm = {
+    headline: typeof parsed.headline === "string" ? parsed.headline.trim() : "",
+    summary: typeof parsed.summary === "string" ? parsed.summary.trim() : "",
+    points: Array.isArray(parsed.points) ? parsed.points.map(x => String(x || "").trim()).filter(Boolean).slice(0, 8) : [],
+    mvpComment: typeof parsed.mvpComment === "string" ? parsed.mvpComment.trim() : "",
+    highlightMatches: Array.isArray(parsed.highlightMatches)
+      ? parsed.highlightMatches.filter(x => x && typeof x === "object").map(x => ({
+          matchId: x.matchId ? String(x.matchId).trim() : "",
+          round: x.round !== undefined ? x.round : "",
+          court: x.court ? String(x.court).trim() : "",
+          tag: x.tag ? String(x.tag).trim() : "注目試合",
+          comment: x.comment ? String(x.comment).trim() : ""
+        })).filter(x => x.comment)
+      : [],
+    importedAt: new Date().toISOString()
+  };
+
+  if (!norm.headline && !norm.summary && norm.points.length === 0 && !norm.mvpComment && norm.highlightMatches.length === 0) {
+    throw new Error("読み込める分析項目（headline / summary / points / highlightMatches）が含まれていません。");
+  }
+  return norm;
+}
+
+function renderGeminiImportStatus() {
+  const box = document.getElementById("geminiImportStatus");
+  if (!box) return;
+  const ga = cur().geminiAnalysis;
+  if (!ga) {
+    box.style.display = "none";
+    box.innerHTML = "";
+    return;
+  }
+  const ptCnt = (ga.points || []).length;
+  const hmCnt = (ga.highlightMatches || []).length;
+  box.style.display = "block";
+  box.innerHTML = `
+    <div class="gs-title">✅ 分析データ読込済（レポートに自動反映されます）</div>
+    <div>${ga.headline ? `「${ga.headline}」<br>` : ""}ポイント ${ptCnt}件 ／ 注目試合コメント ${hmCnt}件</div>`;
+}
+
+document.getElementById("btnImportGemini").onclick = () => {
+  try {
+    const raw = document.getElementById("inpGeminiResult").value;
+    const parsed = parseGeminiAnalysisText(raw);
+    pushUndo("Gemini分析結果読込");
+    cur().geminiAnalysis = parsed;
+    saveState();
+    renderGeminiImportStatus();
+    showToast(`分析結果を読み込みました（ポイント${parsed.points.length}件・注目試合${parsed.highlightMatches.length}件）`);
+  } catch (err) {
+    alert("読込エラー: " + err.message);
+  }
+};
+
+document.getElementById("btnClearGemini").onclick = () => {
+  if (!cur().geminiAnalysis) {
+    document.getElementById("inpGeminiResult").value = "";
+    showToast("読み込まれた分析データはありません");
+    return;
+  }
+  if (confirm("読み込んだGemini分析データをクリアしますか？")) {
+    pushUndo("Gemini分析結果クリア");
+    cur().geminiAnalysis = null;
+    document.getElementById("inpGeminiResult").value = "";
+    saveState();
+    renderGeminiImportStatus();
+    showToast("分析データをクリアしました");
+  }
+};
+
 function renderExportPreview() {
   document.getElementById("scheduleTextPreview").value = buildScheduleShareText();
   document.getElementById("exportPreview").value = buildGeminiText();
+  renderGeminiImportStatus();
 }
 async function copyText(text, taId, msg) {
   try { if (navigator.clipboard) { await navigator.clipboard.writeText(text); showToast(msg); return; } } catch (e) {}
